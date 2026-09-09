@@ -14,10 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY helix ./helix
 COPY app ./app
 COPY cli_main.py ./cli_main.py
+COPY start.py ./start.py
 COPY mq5 ./mq5
 RUN mkdir -p /app/signals
 
 EXPOSE 8080
 
 # Railway sets $PORT; default 8080 locally
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["python", "start.py"]

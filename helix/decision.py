@@ -32,9 +32,14 @@ SESSIONS & NEWS
 - Asia range → London expansion → NY continuation/reversal. Prefer London–NY overlap for majors.
 - Conflicting headlines or clear high-impact risk event → hold.
 
+EXITS (when snapshot.open_position is present / non-null)
+- If thesis invalidated, order-flow flipped against the open side, or market is strongly flat/chop → action "close".
+- Prefer "close" over flipping blindly when unsure (exit first; let the next cycle re-enter if confluence returns).
+- If no open_position context is provided (null/absent), do not invent one — use buy/sell/hold as usual.
+
 CONFIDENCE GATES (SCORE)
 - Score +1 each: HTF bias, OF agrees, discount(buy)/premium(sell) or CRT location, clear DOL, session OK, news clear, EMA/structure agrees, ATR regime OK.
-- buy/sell only if score ≥ 3 (prefer ≥ 4). Else hold.
+- buy/sell only if score ≥ 3 (prefer ≥ 4). Else hold (or close if an open position should be exited).
 - Also require risk OK and prices present. Keep confidence honest (≈0.35+0.1*score, rarely near 1.0).
 - Use playbook_excerpt + structure fields. Apply macro: do not fade impulsive DXY/USD if snapshot/news imply USD trend.
 
@@ -43,14 +48,14 @@ Forex majors only unless the snapshot names another symbol.
 Output ONLY valid JSON matching the schema — no markdown fences, no prose outside JSON.
 Schema:
 {
-  "action": "buy" | "sell" | "hold",
+  "action": "buy" | "sell" | "hold" | "close",
   "symbol": "EURUSD" or other major,
   "confidence": number 0.0-1.0,
   "rationale": "short reason",
   "stop_hint": "optional SL distance/level hint or null",
   "take_hint": "optional TP distance/level hint or null"
 }
-If holding, still set symbol to the primary pair you considered.
+If holding or closing, still set symbol to the primary pair you considered.
 """
 
 
@@ -66,7 +71,7 @@ class TradeDecision(BaseModel):
     @classmethod
     def _action_ok(cls, v: str) -> str:
         v = v.strip().lower()
-        if v not in {"buy", "sell", "hold"}:
+        if v not in {"buy", "sell", "hold", "close"}:
             raise ValueError(f"invalid action: {v}")
         return v
 

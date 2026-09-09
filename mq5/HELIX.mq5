@@ -8,8 +8,8 @@
 //|                                                                  |
 //| AI SIGNALS (helix-brain)                                         |
 //|  Brain writes signals/latest.json with:                          |
-//|    action (buy|sell|hold), symbol, confidence, ts, rationale,    |
-//|    stop_hint, take_hint, meta.provider                           |
+//|    action (buy|sell|hold|close), symbol, confidence, ts,         |
+//|    rationale, stop_hint, take_hint, meta.provider                |
 //|  Copy that file into MT5 Common Files:                           |
 //|    Terminal\Common\Files\HELIX\signals\latest.json               |
 //|  Or per-terminal:                                                |
@@ -18,12 +18,15 @@
 //|  EA tries FILE_COMMON first, then local MQL5\Files.              |
 //|  Use helix-brain/helix/mt5_bridge.py to sync on Windows.         |
 //|                                                                  |
-//| SignalMode Auto (default):                                       |
-//|  If latest.json is fresh (age <= InpMaxSignalAgeSec) AND         |
-//|  confidence >= InpMinConfidence AND action is buy/sell AND       |
-//|  symbol matches chart → trade AI direction (still all risk       |
-//|  gates). Else if InpUseRulesFallback → EMA trend rules.          |
-//|  Hold / stale / low confidence → no AI trade (rules if allowed). |
+//| Entries (new bar):                                               |
+//|  SignalMode Auto: fresh + conf>=InpMinConfidence + buy/sell +    |
+//|  symbol match → AI entry (risk gates). Else rules if allowed.    |
+//|                                                                  |
+//| AI EXITS (every tick when we have open positions):               |
+//|  InpAiManageExits: action=close, opposite flip (sell vs long /   |
+//|  buy vs short), or strong hold (high conf) can close our magic.  |
+//|  Default InpReverseAfterClose=false → exit only, no auto flip.   |
+//|  Hold / stale / low conf → no AI entry (rules if allowed).       |
 //|                                                                  |
 //| Install (Exness MT5 demo recommended first):                     |
 //|  1. Open MT5 logged into your Exness demo account                |
@@ -44,8 +47,8 @@
 //| GMT+2/3). Defaults for stocks approximate US RTH on GMT+2.       |
 //+------------------------------------------------------------------+
 #property copyright "Personal use"
-#property version   "1.20"
-#property description "HELIX — AI-signal + EMA rules EA. Hard risk caps. Always SL. DEMO FIRST."
+#property version   "1.30"
+#property description "HELIX — AI entry+exit mind + EMA rules. Hard risk caps. Always SL. DEMO FIRST."
 
 #include <Trade/Trade.mqh>
 
@@ -80,6 +83,13 @@ input string InpSignalFile         = "HELIX\\signals\\latest.json"; // Under Com
 input double InpMinConfidence      = 0.65;   // Min AI confidence to act (0..1)
 input int    InpMaxSignalAgeSec    = 300;    // Ignore signal older than this many seconds
 input bool   InpUseRulesFallback   = true;   // Auto: use EMA rules when AI unusable
+input bool   InpAiManageExits     = true;   // AI can close our open trades
+input double InpCloseMinConfidence = 0.60;  // Min conf for close / flip-exit
+input bool   InpCloseOnOpposite   = true;   // Close long on sell signal / short on buy
+input bool   InpCloseOnActionClose = true;  // Honor action=close
+input bool   InpCloseOnStrongHold = true;   // Close if action=hold with high conf
+input double InpHoldCloseConfidence = 0.70; // Min conf for hold-exit
+input bool   InpReverseAfterClose = false;  // After opposite close, also open new side (default off — exit only)
 
 //--- forex filters (used when mode = Forex or Auto→forex)
 input group "Forex filters"
@@ -143,8 +153,10 @@ bool g_is_stock = false;   // resolved mode after Auto/manual
 struct AiSignal
   {
    bool     loaded;       // file read + parse ok
-   bool     usable;       // fresh, confident, buy/sell, symbol match
-   string   action;       // buy|sell|hold|""
+   bool     usable;       // alias of usable_entry (backward compat)
+   bool     usable_entry; // buy/sell + conf>=InpMinConfidence + fresh + symbol
+   bool     usable_exit;  // fresh + symbol + conf>=InpCloseMinConfidence (close/opp/hold)
+   string   action;       // buy|sell|hold|close|""
    string   symbol;
    double   confidence;
    string   ts_raw;
@@ -374,6 +386,8 @@ void TryLoadAiSignal(AiSignal &sig)
   {
    sig.loaded = false;
    sig.usable = false;
+   sig.usable_entry = false;
+   sig.usable_exit = false;
    sig.action = "";
    sig.symbol = "";
    sig.confidence = 0;
@@ -431,21 +445,13 @@ void TryLoadAiSignal(AiSignal &sig)
         }
      }
 
-   if(sig.action != "buy" && sig.action != "sell" && sig.action != "hold")
+   if(sig.action != "buy" && sig.action != "sell" &&
+      sig.action != "hold" && sig.action != "close")
      {
       sig.reason = "bad action: " + sig.action;
       return;
      }
-   if(sig.action == "hold")
-     {
-      sig.reason = "action=hold (ignored)";
-      return;
-     }
-   if(sig.confidence < InpMinConfidence)
-     {
-      sig.reason = StringFormat("confidence %.2f < min %.2f", sig.confidence, InpMinConfidence);
-      return;
-     }
+
    if(sig.age_sec < 0)
      {
       sig.reason = "could not parse ts age; refusing stale-unknown signal";
@@ -462,8 +468,39 @@ void TryLoadAiSignal(AiSignal &sig)
       return;
      }
 
-   sig.usable = true;
-   sig.reason = "ok";
+   // Exit path: fresh + symbol + conf gate (hold/close/buy/sell all may drive exits)
+   if(sig.confidence >= InpCloseMinConfidence)
+     {
+      sig.usable_exit = true;
+     }
+
+   // Entry path: buy/sell only, higher entry confidence
+   if((sig.action == "buy" || sig.action == "sell") &&
+      sig.confidence >= InpMinConfidence)
+     {
+      sig.usable_entry = true;
+      sig.usable = true;
+      sig.reason = "ok";
+     }
+   else if(sig.action == "hold" || sig.action == "close")
+     {
+      // Keep loaded for ManageAiExits — not an entry
+      if(sig.usable_exit)
+         sig.reason = "ok_exit (" + sig.action + ")";
+      else
+         sig.reason = StringFormat("%s loaded but conf %.2f < closeMin %.2f",
+                                   sig.action, sig.confidence, InpCloseMinConfidence);
+     }
+   else
+     {
+      // buy/sell but below entry conf — may still be usable for opposite exit
+      if(sig.usable_exit)
+         sig.reason = StringFormat("exit-only: conf %.2f < entryMin %.2f",
+                                   sig.confidence, InpMinConfidence);
+      else
+         sig.reason = StringFormat("confidence %.2f < min %.2f",
+                                   sig.confidence, InpMinConfidence);
+     }
   }
 
 //+------------------------------------------------------------------+
@@ -526,6 +563,13 @@ int OnInit()
          " minConf=", DoubleToString(InpMinConfidence,2),
          " maxAgeSec=", InpMaxSignalAgeSec,
          " rulesFallback=", InpUseRulesFallback ? "yes" : "no");
+   Print("AI exits: manage=", InpAiManageExits ? "yes" : "no",
+         " closeMinConf=", DoubleToString(InpCloseMinConfidence,2),
+         " onClose=", InpCloseOnActionClose ? "yes" : "no",
+         " onOpposite=", InpCloseOnOpposite ? "yes" : "no",
+         " onStrongHold=", InpCloseOnStrongHold ? "yes" : "no",
+         " holdCloseConf=", DoubleToString(InpHoldCloseConfidence,2),
+         " reverseAfterClose=", InpReverseAfterClose ? "yes" : "no");
    Print("Place latest.json under Terminal\\Common\\Files\\", InpSignalFile,
          " (or MQL5\\Files\\...). See helix-brain mt5_bridge.py");
    if(g_is_stock)
@@ -564,6 +608,11 @@ void OnTick()
    if(!AccountInfoInteger(ACCOUNT_TRADE_EXPERT)) return;
 
    ResetDayIfNeeded();
+
+   // AI exit mind — every tick while we hold positions (not gated to new bar)
+   if(CountOurPositions() > 0)
+      ManageAiExits();
+
    if(DailyLossHit()) return;
 
    // New-bar logic so we do not spam orders every tick
@@ -604,7 +653,7 @@ void OnTick()
      {
       AiSignal ai;
       TryLoadAiSignal(ai);
-      if(ai.usable)
+      if(ai.usable_entry)
         {
          if(ai.action == "buy")  { want_buy = true;  src = "AI"; }
          if(ai.action == "sell") { want_sell = true; src = "AI"; }
@@ -643,10 +692,30 @@ void OnTick()
         { want_sell = true; src = "Rules"; }
      }
 
-   if(want_buy)
-      OpenTrade(ORDER_TYPE_BUY, sl_dist, src);
-   else if(want_sell)
-      OpenTrade(ORDER_TYPE_SELL, sl_dist, src);
+   if(want_buy || want_sell)
+     {
+      int dir = PositionDirection();
+      int want_dir = want_buy ? 1 : -1;
+      if(dir != 0 && dir == -want_dir)
+        {
+         // Entry wants opposite of open position
+         if(InpReverseAfterClose)
+           {
+            CloseOurPositions(want_buy ? "AI reverse to buy" : "AI reverse to sell");
+           }
+         else
+           {
+            // Exit-only mode: do not open opposite while still flat-gated by MaxPositions
+            return;
+           }
+        }
+      if(CountOurPositions() >= InpMaxPositions)
+         return;
+      if(want_buy)
+         OpenTrade(ORDER_TYPE_BUY, sl_dist, src);
+      else
+         OpenTrade(ORDER_TYPE_SELL, sl_dist, src);
+     }
   }
 
 //+------------------------------------------------------------------+
@@ -784,6 +853,96 @@ double NormalizePrice(double p)
    double tick = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
    if(tick<=0) return NormalizeDouble(p, _Digits);
    return NormalizeDouble(MathRound(p/tick)*tick, _Digits);
+  }
+
+//+------------------------------------------------------------------+
+//| 1 = long, -1 = short, 0 = none (our magic + chart symbol)        |
+//+------------------------------------------------------------------+
+int PositionDirection()
+  {
+   for(int i=PositionsTotal()-1;i>=0;i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket==0) continue;
+      if(PositionGetString(POSITION_SYMBOL)!=_Symbol) continue;
+      if((ulong)PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      long ptype = PositionGetInteger(POSITION_TYPE);
+      if(ptype == POSITION_TYPE_BUY)  return 1;
+      if(ptype == POSITION_TYPE_SELL) return -1;
+     }
+   return 0;
+  }
+
+//+------------------------------------------------------------------+
+bool CloseOurPositions(const string reason)
+  {
+   bool any=false;
+   bool all_ok=true;
+   for(int i=PositionsTotal()-1;i>=0;i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket==0) continue;
+      if(PositionGetString(POSITION_SYMBOL)!=_Symbol) continue;
+      if((ulong)PositionGetInteger(POSITION_MAGIC)!=InpMagic) continue;
+      if(!trade.PositionClose(ticket))
+        {
+         all_ok=false;
+         Print("Close failed ticket=", ticket, " ret=", trade.ResultRetcode(),
+               " ", trade.ResultRetcodeDescription(), " reason=", reason);
+        }
+      else
+        {
+         any=true;
+         Print("Closed ticket=", ticket, " reason=", reason);
+        }
+     }
+   return any && all_ok;
+  }
+
+//+------------------------------------------------------------------+
+void ManageAiExits()
+  {
+   if(!InpAiManageExits) return;
+   if(CountOurPositions() <= 0) return;
+   if(InpSignalMode == SIGNAL_MODE_RULES_ONLY) return;
+
+   AiSignal ai;
+   TryLoadAiSignal(ai);
+   if(!ai.loaded) return;
+   // Stale / symbol fail leave usable_exit false and age/reason set
+   if(ai.age_sec < 0 || ai.age_sec > InpMaxSignalAgeSec) return;
+   if(!SymbolMatchesSignal(ai.symbol)) return;
+
+   int dir = PositionDirection();
+   if(dir == 0) return;
+
+   if(InpCloseOnActionClose && ai.action == "close" &&
+      ai.confidence >= InpCloseMinConfidence)
+     {
+      CloseOurPositions("AI close");
+      return;
+     }
+
+   if(InpCloseOnOpposite && ai.action == "sell" && dir > 0 &&
+      ai.confidence >= InpCloseMinConfidence)
+     {
+      CloseOurPositions("AI flip sell");
+      return;
+     }
+
+   if(InpCloseOnOpposite && ai.action == "buy" && dir < 0 &&
+      ai.confidence >= InpCloseMinConfidence)
+     {
+      CloseOurPositions("AI flip buy");
+      return;
+     }
+
+   if(InpCloseOnStrongHold && ai.action == "hold" &&
+      ai.confidence >= InpHoldCloseConfidence)
+     {
+      CloseOurPositions("AI strong hold exit");
+      return;
+     }
   }
 
 //+------------------------------------------------------------------+

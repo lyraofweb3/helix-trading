@@ -66,6 +66,8 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
         "structure": prices.get("structure"),
         "playbook_excerpt": excerpt or None,
         "knowledge_version": knowledge_version_from_rules() or KNOWLEDGE_VERSION,
+        # Optional EA position feedback (null until MT5 feeds back open trade context)
+        "open_position": None,
         "risk_context": {
             "risk_percent": RISK_PERCENT,
             "max_daily_loss_pct": MAX_DAILY_LOSS_PCT,

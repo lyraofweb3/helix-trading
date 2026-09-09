@@ -16,6 +16,7 @@ from helix.config import (
     get_openai_api_key,
 )
 from helix.decision import SYSTEM_PROMPT, TradeDecision, extract_json
+from helix.knowledge_loader import load_playbook_excerpt
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class OpenAIClient:
             "model": self.model,
             "temperature": self.temperature,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": SYSTEM_PROMPT + "\n\n" + load_playbook_excerpt()},
                 {"role": "user", "content": json.dumps(user_payload)},
             ],
         }

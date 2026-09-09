@@ -102,3 +102,7 @@ Optional: `HELIX_XAI_MODEL`, `HELIX_OPENAI_MODEL`, `HELIX_ANTHROPIC_MODEL`.
 - Never log or commit API keys / `.env` / box-secrets.
 - No live broker API from Python in this package.
 - If all LLM providers fail, `/api/run-once` returns an error; the dashboard still shows the last good signal if present.
+
+## Knowledge pack
+
+HELIX ships `helix/knowledge/` (PLAYBOOK + rules). Version `2026-09-09-v2-deep`: risk, MTF, liquidity/CRT/DOL, sessions, macro FX, confluence score ≥3. Auto brain may be paused via `HELIX_POLL_SECONDS=0`.

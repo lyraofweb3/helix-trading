@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from helix.structure import compute_structure
+
 logger = logging.getLogger(__name__)
 
 # HELIX majors → Yahoo Finance FX tickers (verified 2026-09).
@@ -25,6 +27,8 @@ YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
 # ~60 calendar days of H1 ≈ enough history for EMA200 after weekends/gaps
 YAHOO_INTERVAL = "60m"
 YAHOO_RANGE = "60d"
+YAHOO_DAILY_INTERVAL = "1d"
+YAHOO_DAILY_RANGE = "6mo"
 YAHOO_TIMEOUT_SEC = 20.0
 
 # Rough mid→bid/ask stub when Yahoo has no quote book (points = MT5 Point units).
@@ -134,6 +138,7 @@ def _null_price_fields(note: str) -> dict[str, Any]:
         "last_close": None,
         "note": note,
         "price_provider": None,
+        "structure": None,
     }
 
 
@@ -144,9 +149,14 @@ def _round_px(x: float, symbol: str) -> float:
     return round(x, 5)
 
 
-def fetch_ohlc_h1(symbol: str) -> tuple[list[float], list[float], list[float], list[float]]:
+def _fetch_yahoo_ohlc(
+    symbol: str,
+    interval: str,
+    range_: str,
+    min_bars: int,
+) -> tuple[list[float], list[float], list[float], list[float]]:
     """
-    Download H1 (60m) OHLC from Yahoo chart API.
+    Download OHLC from Yahoo chart API for the given interval/range.
     Returns (opens, highs, lows, closes) with null bars dropped.
     Raises on HTTP/parse failure.
     """
@@ -155,7 +165,7 @@ def fetch_ohlc_h1(symbol: str) -> tuple[list[float], list[float], list[float], l
     headers = {
         "User-Agent": "Mozilla/5.0 (compatible; HELIX-Brain/0.1; forex research)",
     }
-    params = {"interval": YAHOO_INTERVAL, "range": YAHOO_RANGE}
+    params = {"interval": interval, "range": range_}
     with httpx.Client(
         timeout=YAHOO_TIMEOUT_SEC,
         follow_redirects=True,
@@ -193,15 +203,25 @@ def fetch_ohlc_h1(symbol: str) -> tuple[list[float], list[float], list[float], l
         highs.append(float(h))
         lows.append(float(l))
         closes.append(float(c))
-    if len(closes) < 50:
-        raise RuntimeError(f"insufficient H1 bars from Yahoo ({len(closes)})")
+    if len(closes) < min_bars:
+        raise RuntimeError(f"insufficient bars from Yahoo ({len(closes)} < {min_bars})")
     return opens, highs, lows, closes
+
+
+def fetch_ohlc_h1(symbol: str) -> tuple[list[float], list[float], list[float], list[float]]:
+    """Download H1 (60m) OHLC from Yahoo chart API."""
+    return _fetch_yahoo_ohlc(symbol, YAHOO_INTERVAL, YAHOO_RANGE, min_bars=50)
+
+
+def fetch_ohlc_daily(symbol: str) -> tuple[list[float], list[float], list[float], list[float]]:
+    """Download daily (1d, 6mo) OHLC for PDH/PDL and D1 context."""
+    return _fetch_yahoo_ohlc(symbol, YAHOO_DAILY_INTERVAL, YAHOO_DAILY_RANGE, min_bars=5)
 
 
 def fetch_snapshot(symbol: str) -> dict[str, Any]:
     """
     Fetch recent H1 OHLC, compute EMA21/50/200, RSI14, ATR14, last close,
-    and a rough bid/ask/spread stub (Yahoo mid only).
+    a rough bid/ask/spread stub, and structure (swings, range, PDH/PDL, OF, FVG).
 
     Returns dict matching brain snapshot price fields. On any failure returns
     null price fields + note (fail soft — caller should prefer hold).
@@ -214,6 +234,16 @@ def fetch_snapshot(symbol: str) -> dict[str, Any]:
         return _null_price_fields(
             f"Live prices unavailable ({type(exc).__name__}) — treat as incomplete; prefer hold."
         )
+
+    daily_highs: list[float] | None = None
+    daily_lows: list[float] | None = None
+    daily_closes: list[float] | None = None
+    daily_note = ""
+    try:
+        _do, daily_highs, daily_lows, daily_closes = fetch_ohlc_daily(sym)
+    except Exception as exc:  # noqa: BLE001 — PDH/PDL optional
+        logger.warning("Daily feed failed for %s: %s", sym, type(exc).__name__)
+        daily_note = f" Daily OHLC unavailable ({type(exc).__name__}); PDH/PDL omitted."
 
     last = closes[-1]
     ema21 = _ema(closes, 21)
@@ -229,9 +259,20 @@ def fetch_snapshot(symbol: str) -> dict[str, Any]:
     ask = last + half
     atr_pts = (atr14 / pt) if atr14 is not None and pt > 0 else None
 
+    structure = compute_structure(
+        sym,
+        highs,
+        lows,
+        closes,
+        daily_highs=daily_highs,
+        daily_lows=daily_lows,
+        daily_closes=daily_closes,
+    )
+
     note = (
         f"Yahoo Finance H1 ({yahoo_ticker(sym)}); "
         f"bid/ask stubbed ±{spread_pts // 2} points around last close (no live book)."
+        f"{daily_note}"
     )
 
     def _r(v: float | None) -> float | None:
@@ -251,4 +292,5 @@ def fetch_snapshot(symbol: str) -> dict[str, Any]:
         "last_close": _r(last),
         "note": note,
         "price_provider": "yahoo",
+        "structure": structure,
     }

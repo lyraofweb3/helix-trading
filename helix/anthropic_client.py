@@ -17,6 +17,7 @@ from helix.config import (
     get_anthropic_api_key,
 )
 from helix.decision import SYSTEM_PROMPT, TradeDecision, extract_json
+from helix.knowledge_loader import load_playbook_excerpt
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class AnthropicClient:
         body = {
             "model": self.model,
             "max_tokens": self.max_tokens,
-            "system": SYSTEM_PROMPT,
+            "system": SYSTEM_PROMPT + "\n\n" + load_playbook_excerpt(),
             "messages": [
                 {"role": "user", "content": json.dumps(user_payload)},
             ],

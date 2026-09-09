@@ -148,6 +148,9 @@ MIN_RR = 1.5                # InpMinRR
 SL_ATR_MULT = 1.5           # InpSL_ATR_Mult
 FX_MAX_SPREAD_POINTS = 25   # InpFxMaxSpreadPoints
 
+# --- knowledge pack ---
+KNOWLEDGE_VERSION = "2026-09-09-v1"
+
 # --- loop ---
 # Prefer HELIX_POLL_SECONDS (web/Railway); fall back to HELIX_POLL_INTERVAL; default 300 for web
 POLL_INTERVAL_SEC = int(

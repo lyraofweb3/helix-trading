@@ -1,0 +1,246 @@
+{
+  "name": "HELIX_decision_rules",
+  "version": "1.0.0",
+  "description": "Machine-readable checklist HELIX applies before buy/sell/hold. Original HELIX synthesis.",
+  "prefer_action_enum": [
+    "buy",
+    "sell",
+    "hold",
+    "hold_unless",
+    "buy_bias",
+    "sell_bias",
+    "follow_dol",
+    "follow_bias",
+    "allow_entry",
+    "buy_or_sell"
+  ],
+  "defaults": {
+    "max_risk_pct_per_trade": 1.0,
+    "daily_loss_cap_pct": 2.5,
+    "news_blackout_minutes": 45,
+    "bias_timeframes": [
+      "D1",
+      "H4"
+    ],
+    "timing_timeframe": "H1"
+  },
+  "rules": [
+    {
+      "id": "RISK-01",
+      "when": "Any new entry proposed",
+      "prefer_action": "hold_unless",
+      "notes": "Require planned stop and position size with risk_pct <= 1.0 of equity. If cannot size without exceeding 1%, HOLD."
+    },
+    {
+      "id": "RISK-02",
+      "when": "Daily realized + open loss >= daily_loss_cap (default 2-3% of day-start equity)",
+      "prefer_action": "hold",
+      "notes": "Close discretionary new risk; no new buys/sells until next trading day. No revenge sizing."
+    },
+    {
+      "id": "RISK-03",
+      "when": "Proposal includes doubling after loss, averaging into a loser, or removing stop",
+      "prefer_action": "hold",
+      "notes": "Martingale and recovery averaging are forbidden. One risk unit per setup."
+    },
+    {
+      "id": "RISK-04",
+      "when": "Open correlated positions would push total heat above ~2-3% equity",
+      "prefer_action": "hold",
+      "notes": "Treat highly correlated pairs as one risk bucket."
+    },
+    {
+      "id": "NEWS-01",
+      "when": "High-impact calendar event for either currency (or USD) within blackout window (default +/- 30-60m)",
+      "prefer_action": "hold",
+      "notes": "No new entries in blackout. Prefer flat into unknown major CB decisions unless plan explicitly accepts event risk."
+    },
+    {
+      "id": "MTF-01",
+      "when": "D1 and H4 bias conflict or structure is mixed (no clear HH/HL or LH/LL)",
+      "prefer_action": "hold",
+      "notes": "Bias unclear. Wait for alignment or H4 structure repair before H1 timing."
+    },
+    {
+      "id": "MTF-02",
+      "when": "D1/H4 bullish (HH/HL and/or bullish EMA stack) and H1 gives long trigger at discount/support",
+      "prefer_action": "buy",
+      "notes": "Trade with HTF bias; H1 only times entry. Stop beyond local invalidation / swept low."
+    },
+    {
+      "id": "MTF-03",
+      "when": "D1/H4 bearish (LH/LL and/or bearish EMA stack) and H1 gives short trigger at premium/resistance",
+      "prefer_action": "sell",
+      "notes": "Mirror of MTF-02. Stop beyond local invalidation / swept high."
+    },
+    {
+      "id": "STRUCT-01",
+      "when": "Price mid-range near 50% with overlapping candles and no CRT purge/neutralize",
+      "prefer_action": "hold",
+      "notes": "Mid-range chop. Wait for range extreme, CRT, or clear order flow."
+    },
+    {
+      "id": "FLOW-01",
+      "when": "Order flow bullish (breaks highs, rejects lows) and DOL is upside pool with discount entry",
+      "prefer_action": "buy",
+      "notes": "Require order-flow agreement before naming DOL. Prefer buy location in discount."
+    },
+    {
+      "id": "FLOW-02",
+      "when": "Order flow bearish (breaks lows, rejects highs) and DOL is downside pool with premium entry",
+      "prefer_action": "sell",
+      "notes": "Mirror of FLOW-01. Prefer sell location in premium."
+    },
+    {
+      "id": "FLOW-03",
+      "when": "Cannot classify order flow (mixed breaks/rejects)",
+      "prefer_action": "hold",
+      "notes": "Do not invent DOL without flow."
+    },
+    {
+      "id": "CRT-01",
+      "when": "CRT generate+purge aligns with flow; neutralize close-inside reassigns DOL to opposite CRT extreme",
+      "prefer_action": "follow_dol",
+      "notes": "Action is buy or sell toward the active DOL after neutralize, only if HTF bias and risk rules pass. follow_dol means prefer_action resolves to buy if DOL is above and bias long, else sell if DOL below and bias short; otherwise hold."
+    },
+    {
+      "id": "PDH-01",
+      "when": "Daily/weekly candle closes above prior day/week high",
+      "prefer_action": "buy_bias",
+      "notes": "Lean higher; next DOL often upside liquidity. Still need H1 timing and risk checks for actual buy."
+    },
+    {
+      "id": "PDH-02",
+      "when": "Daily/weekly candle closes below prior day/week low",
+      "prefer_action": "sell_bias",
+      "notes": "Lean lower; next DOL often downside liquidity."
+    },
+    {
+      "id": "PDH-03",
+      "when": "Large wick above PDH/PWH with close back inside/below",
+      "prefer_action": "sell_bias",
+      "notes": "Rejection wick above -> lean lower; DOL toward prior low."
+    },
+    {
+      "id": "PDH-04",
+      "when": "Large wick below PDL/PWL with close back inside/above",
+      "prefer_action": "buy_bias",
+      "notes": "Rejection wick below -> lean higher; DOL toward prior high."
+    },
+    {
+      "id": "PDH-05",
+      "when": "Close inside prior day range while HTF bullish",
+      "prefer_action": "sell_bias",
+      "notes": "Per user DOL notes: often seek prior day low (liquidity under). Confirm with flow/CRT before selling."
+    },
+    {
+      "id": "PDH-06",
+      "when": "Close inside prior day range while HTF bearish",
+      "prefer_action": "buy_bias",
+      "notes": "Per user DOL notes: often seek prior day high. Confirm with flow/CRT before buying."
+    },
+    {
+      "id": "LOC-01",
+      "when": "Long setup but price is in premium (>50% of dealing range) without exceptional confluence",
+      "prefer_action": "hold",
+      "notes": "Prefer buys in discount. Skip thin premium longs."
+    },
+    {
+      "id": "LOC-02",
+      "when": "Short setup but price is in discount (<50% of dealing range) without exceptional confluence",
+      "prefer_action": "hold",
+      "notes": "Prefer sells in premium. Skip thin discount shorts."
+    },
+    {
+      "id": "IRL-01",
+      "when": "Price taps IRL (FVG/OB) with CRT forming and SMT present; HTF bias long; discount",
+      "prefer_action": "buy",
+      "notes": "First DOL often CRT extreme; second ERL (e.g. old high). Stop beyond sweep/IRL invalidation."
+    },
+    {
+      "id": "IRL-02",
+      "when": "Price taps IRL (FVG/OB) with CRT forming and SMT present; HTF bias short; premium",
+      "prefer_action": "sell",
+      "notes": "Mirror of IRL-01 toward downside ERL."
+    },
+    {
+      "id": "IRL-03",
+      "when": "IRL tap without CRT and without SMT while relying on IRL->ERL story",
+      "prefer_action": "hold",
+      "notes": "User notes treat CRT/SMT as essential for IRL<->ERL quality. Wait."
+    },
+    {
+      "id": "RSI-01",
+      "when": "RSI extreme alone (e.g. >70 or <30) with no level, flow, or HTF agreement",
+      "prefer_action": "hold",
+      "notes": "RSI is context. Do not fade trends solely on RSI."
+    },
+    {
+      "id": "RSI-02",
+      "when": "With-trend pullback: RSI cools then turns back with HTF bias and H1 trigger at level",
+      "prefer_action": "follow_bias",
+      "notes": "Resolve to buy if bullish bias, sell if bearish. RSI supports timing only."
+    },
+    {
+      "id": "SESS-01",
+      "when": "Intended entry during thin liquidity (e.g. Sydney-only stretch) on a non-Asia pair with wide spreads",
+      "prefer_action": "hold",
+      "notes": "Prefer London or London-NY overlap for majors unless pair is Asia-centric."
+    },
+    {
+      "id": "SESS-02",
+      "when": "Setup ready during London or London-NY overlap, all other rules pass",
+      "prefer_action": "allow_entry",
+      "notes": "Session supports execution; still apply buy/sell rules from bias/flow/location."
+    },
+    {
+      "id": "HOLD-01",
+      "when": "Conflicting news narratives, dual high-impact events, or unclear fundamental vs technical picture",
+      "prefer_action": "hold",
+      "notes": "Stand down until one side of the conflict resolves."
+    },
+    {
+      "id": "HOLD-02",
+      "when": "Any required checklist item missing: bias, flow, location, DOL, stop, session, or risk",
+      "prefer_action": "hold",
+      "notes": "Incomplete confluence = no trade. HOLD is a first-class HELIX action."
+    },
+    {
+      "id": "EXEC-01",
+      "when": "All of: risk OK, outside blackout, HTF bias clear, order flow agrees, premium/discount location OK, DOL stated, H1 trigger, acceptable session",
+      "prefer_action": "buy_or_sell",
+      "notes": "prefer_action is buy if bias+flow long, sell if bias+flow short. Log DOL and invalidation."
+    }
+  ],
+  "knowledge_version": "2026-09-09-v2-deep",
+  "confluence_gates": {
+    "buy_sell_requires_min_score": 3,
+    "prefer_min_score": 4,
+    "score_items": [
+      "htf_bias",
+      "order_flow",
+      "premium_discount_or_crt",
+      "clear_dol",
+      "session_ok",
+      "news_clear",
+      "ema_or_structure",
+      "atr_regime_ok"
+    ],
+    "else_action": "hold",
+    "incomplete_prices": "hold"
+  },
+  "macro": {
+    "respect_usd_impulse": true,
+    "correlation_heat_cap": true,
+    "commodity_fx_notes": [
+      "CAD~oil",
+      "AUD_NZD~China_risk"
+    ]
+  },
+  "sessions_utc": {
+    "asia": "00:00-07:00",
+    "london_kill": "07:00-10:00",
+    "london_ny_overlap": "12:00-16:00",
+    "prefer_for_majors": "london_ny_overlap"
+  }
+}

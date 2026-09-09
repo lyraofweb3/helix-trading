@@ -29,6 +29,7 @@ from helix.decision import TradeDecision
 from helix.news import fetch_headlines
 from helix.openai_client import OpenAIClient
 from helix.prices import fetch_snapshot
+from helix.knowledge_loader import knowledge_version_from_rules, load_playbook_excerpt
 from helix.xai_client import XAIClient
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,9 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
             "sl_atr_mult": SL_ATR_MULT,
         },
         "as_of": datetime.now(timezone.utc).isoformat(),
+        "playbook_excerpt": load_playbook_excerpt(8000),
+        "knowledge_version": knowledge_version_from_rules(),
+        "structure": prices.get("structure"),
     }
 
 
@@ -154,6 +158,10 @@ def run_once(
             "provider": provider,
             "model": used_client.model,
             "snapshot_note": snapshot.get("note"),
+            "knowledge_version": snapshot.get("knowledge_version") or knowledge_version_from_rules(),
+            "structure_summary": (snapshot.get("structure") or {}).get("summary")
+            if isinstance(snapshot.get("structure"), dict)
+            else None,
         },
     )
     result = json.loads(path.read_text(encoding="utf-8"))

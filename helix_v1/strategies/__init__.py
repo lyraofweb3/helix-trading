@@ -11,6 +11,7 @@ from helix_v1.strategies.session import SessionStrategy
 from helix_v1.strategies.structure_smc import StructureSMCStrategy
 from helix_v1.strategies.trend import TrendStrategy
 from helix_v1.strategies.holly_ai import HollyAIStrategy
+from helix_v1.strategies.scalp import ScalpStrategy
 
 ALL_STRATEGIES = [
     TrendStrategy(),
@@ -21,6 +22,7 @@ ALL_STRATEGIES = [
     SessionStrategy(),
     NewsReactiveStrategy(),
     HollyAIStrategy(),
+    ScalpStrategy(),
 ]
 
 

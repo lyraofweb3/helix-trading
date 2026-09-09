@@ -74,3 +74,9 @@ Public conceptual anchors (non-paywalled explainers used for vocabulary cross-ch
 
 - Prefer: “Per HELIX playbook (risk § / liquidity §)” over naming influencers.
 - When explaining to the user: distinguish **user PDF notes** vs **public risk/session facts**.
+
+
+## NetProfitFX free course (2026-09-09)
+| Source | Use in HELIX |
+|--------|----------------|
+| https://netprofitfx.com/pdfs/free-course-NetProfitFX.pdf | Public free course themes paraphrased into `NETPROFITFX_SYNTHESIS.md` + decision rules (sessions, SL/TP/BE, Fib, patterns, 6-step checklist, MM). Not a verbatim copy. NetCopier/premium marketing excluded. |

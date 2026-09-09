@@ -123,8 +123,13 @@ def enrich_scan_row(row: dict[str, Any], snapshot: dict[str, Any] | None = None)
     out = dict(row)
     try:
         if snapshot is None:
-            from helix.brain import build_market_snapshot
-            snapshot = build_market_snapshot(row["symbol"])
+            from helix_v1.trade_style import is_scalp
+            if is_scalp():
+                from helix_v1.scalp import build_scalp_snapshot
+                snapshot = build_scalp_snapshot(row["symbol"])
+            else:
+                from helix.brain import build_market_snapshot
+                snapshot = build_market_snapshot(row["symbol"])
         ideas = ideas_payload(snapshot)
         top = ideas.get("top") or {}
         out["idea_odds"] = float(top.get("odds") or 0.0)

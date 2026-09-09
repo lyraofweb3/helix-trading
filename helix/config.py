@@ -143,6 +143,8 @@ SYMBOLS = [
 DEFAULT_SYMBOL = "EURUSD"
 # When true (default), brain/API pick best market across the universe — user does not choose symbol
 AUTO_MARKET = (os.environ.get("HELIX_AUTO_MARKET", "1").strip().lower() not in {"0", "false", "no", "off"})
+# swing = H1 (default); scalp = M5/M15 additive path for demo + live
+TRADE_STYLE = (os.environ.get("HELIX_TRADE_STYLE") or "swing").strip().lower()
 
 # --- risk (mirrors HELIX.mq5) ---
 RISK_PERCENT = 0.5          # InpRiskPercent
@@ -154,7 +156,7 @@ SL_ATR_MULT = 1.5           # InpSL_ATR_Mult
 FX_MAX_SPREAD_POINTS = 25   # InpFxMaxSpreadPoints
 
 # --- knowledge pack ---
-KNOWLEDGE_VERSION = "2026-09-09-v3-commodities"
+KNOWLEDGE_VERSION = "2026-09-09-v4-npfx-scalp"
 
 # --- loop ---
 # Prefer HELIX_POLL_SECONDS (web/Railway); fall back to HELIX_POLL_INTERVAL; default 300 for web

@@ -36,6 +36,13 @@ def _load_raw(max_chars: int) -> str:
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Could not read DECISION_RULES.json: %s", type(exc).__name__)
 
+    npfx = _KNOWLEDGE_DIR / "NETPROFITFX_SYNTHESIS.md"
+    if npfx.is_file():
+        try:
+            parts.append("---\nNETPROFITFX synthesis (paraphrased):\n" + npfx.read_text(encoding="utf-8")[:4000])
+        except OSError as exc:
+            logger.warning("Could not read NETPROFITFX_SYNTHESIS.md: %s", type(exc).__name__)
+
     text = "\n\n".join(parts).strip()
     if not text:
         return ""
@@ -133,3 +140,16 @@ def knowledge_version_from_rules() -> str | None:
 
 def clear_knowledge_cache() -> None:
     _load_raw.cache_clear()
+
+
+def load_npfx_excerpt(max_chars: int = 1800) -> str:
+    """Paraphrased NetProfitFX themes for LLM/quant context."""
+    path = _KNOWLEDGE_DIR / "NETPROFITFX_SYNTHESIS.md"
+    if not path.is_file():
+        return ""
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ""
+    return text[:max_chars]
+

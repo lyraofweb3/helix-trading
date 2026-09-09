@@ -212,7 +212,7 @@
       "notes": "prefer_action is buy if bias+flow long, sell if bias+flow short. Log DOL and invalidation."
     }
   ],
-  "knowledge_version": "2026-09-09-v3-commodities",
+  "knowledge_version": "2026-09-09-v4-npfx-scalp",
   "confluence_gates": {
     "buy_sell_requires_min_score": 3,
     "prefer_min_score": 4,
@@ -259,5 +259,31 @@
       "UKOIL"
     ],
     "exness_suffix_note": "charts may append m"
+  },
+  "sources_extra": [
+    "netprofitfx_free_course_paraphrase"
+  ],
+  "npfx_launch_checklist": {
+    "min_hits": 4,
+    "items": [
+      "htf_bias_clear",
+      "at_sr_or_fib_or_round",
+      "rsi_timing_ok",
+      "ema20_50_agrees",
+      "candle_or_pattern_confirm",
+      "news_blackout_clear"
+    ],
+    "notes": "Paraphrased from NetProfitFX 'launch a good trade' \u2014 HELIX hold unless enough hits."
+  },
+  "npfx_risk": {
+    "course_max_risk_pct": 3.0,
+    "helix_default_risk_pct": 0.5,
+    "prefer_rr_min_swing": 2.0,
+    "prefer_rr_min_scalp": 1.2,
+    "news_buffer_hours": 3
+  },
+  "session_overlap_boost": {
+    "london_ny": true,
+    "note": "Volume boost only; not a hard clock when anytime readiness is on."
   }
 }

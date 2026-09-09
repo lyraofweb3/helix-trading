@@ -30,7 +30,7 @@ from helix.decision import TradeDecision
 from helix.news import fetch_headlines
 from helix.openai_client import OpenAIClient
 from helix.prices import fetch_snapshot
-from helix.knowledge_loader import knowledge_version_from_rules, load_playbook_excerpt
+from helix.knowledge_loader import knowledge_version_from_rules, load_playbook_excerpt, load_npfx_excerpt
 from helix.xai_client import XAIClient
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,9 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
     """
     prices = fetch_snapshot(symbol)
     excerpt = load_playbook_excerpt()
+    npfx = load_npfx_excerpt()
+    if npfx:
+        excerpt = (excerpt or "") + "\n\n--- NPFX synthesis ---\n" + npfx
     snap = {
         "symbol": symbol,
         "timeframe": "H1",

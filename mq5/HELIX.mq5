@@ -48,7 +48,7 @@
 //| GMT+2/3). Defaults for stocks approximate US RTH on GMT+2.       |
 //+------------------------------------------------------------------+
 #property copyright "Personal use"
-#property version   "1.32"
+#property version   "1.33"
 #property description "HELIX 1.32 — AI mind + idea channels + trail/BE/partial. Hard risk. DEMO FIRST."
 
 #include <Trade/Trade.mqh>
@@ -92,7 +92,7 @@ input bool   InpCloseOnStrongHold = true;   // Close if action=hold with high co
 input double InpHoldCloseConfidence = 0.70; // Min conf for hold-exit
 input bool   InpReverseAfterClose = false;  // After opposite close, also open new side (default off — exit only)
 
-input group "Pro trade management (HELIX 1.32)"
+input group "Pro trade management (HELIX 1.33)"
 input bool   InpUseTrailing        = true;   // Trail stop after profit threshold
 input double InpTrailATRMult       = 1.0;    // Trail distance = ATR * this
 input double InpTrailStartATRMult  = 1.0;    // Start trailing after +ATR*this profit
@@ -132,7 +132,12 @@ input double InpStMaxATRPoints     = 5000;   // Skip chaos / earnings spikes
 
 //--- strategy
 input group "Strategy (H1 trend + pullback)"
-input ENUM_TIMEFRAMES InpTrendTF   = PERIOD_H1;
+input int    InpTradeStyle  = 0;       // 0=swing (H1), 1=scalp (M5/M15)
+input ENUM_TIMEFRAMES InpTrendTF   = PERIOD_H1; // swing chart TF
+input ENUM_TIMEFRAMES InpScalpTF  = PERIOD_M5; // scalp chart TF when style=1
+input ENUM_TIMEFRAMES InpScalpBiasTF = PERIOD_M15;
+input double InpScalpMinRR = 1.2;     // scalp take = SL * this
+input double InpScalpSL_ATR = 0.8;    // scalp SL ATR mult
 input int    InpFastEMA            = 21;
 input int    InpSlowEMA            = 50;
 input int    InpTrendEMA           = 200;
@@ -542,11 +547,11 @@ int OnInit()
    trade.SetTypeFillingBySymbol(_Symbol);
    trade.LogLevel(LOG_LEVEL_ERRORS);
 
-   h_fast  = iMA(_Symbol, InpTrendTF, InpFastEMA, 0, MODE_EMA, PRICE_CLOSE);
-   h_slow  = iMA(_Symbol, InpTrendTF, InpSlowEMA, 0, MODE_EMA, PRICE_CLOSE);
-   h_trend = iMA(_Symbol, InpTrendTF, InpTrendEMA, 0, MODE_EMA, PRICE_CLOSE);
-   h_atr   = iATR(_Symbol, InpTrendTF, InpATRPeriod);
-   h_rsi   = iRSI(_Symbol, InpTrendTF, InpRSIPeriod, PRICE_CLOSE);
+   h_fast  = iMA(_Symbol, EffectiveTrendTF(), InpFastEMA, 0, MODE_EMA, PRICE_CLOSE);
+   h_slow  = iMA(_Symbol, EffectiveTrendTF(), InpSlowEMA, 0, MODE_EMA, PRICE_CLOSE);
+   h_trend = iMA(_Symbol, EffectiveTrendTF(), InpTrendEMA, 0, MODE_EMA, PRICE_CLOSE);
+   h_atr   = iATR(_Symbol, EffectiveTrendTF(), InpATRPeriod);
+   h_rsi   = iRSI(_Symbol, EffectiveTrendTF(), InpRSIPeriod, PRICE_CLOSE);
 
    if(h_fast==INVALID_HANDLE || h_slow==INVALID_HANDLE || h_trend==INVALID_HANDLE
       || h_atr==INVALID_HANDLE || h_rsi==INVALID_HANDLE)
@@ -563,7 +568,7 @@ int OnInit()
    string sig_mode = (InpSignalMode==SIGNAL_MODE_AUTO) ? "Auto" :
                      (InpSignalMode==SIGNAL_MODE_RULES_ONLY) ? "RulesOnly" : "AIOnly";
    long calc = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_CALC_MODE);
-   Print("HELIX started on ", _Symbol, " ", EnumToString(InpTrendTF),
+   Print("HELIX started on ", _Symbol, " ", EnumToString(EffectiveTrendTF()),
          " | mode=", mode_str, " (", mode_src, ")",
          " | signalMode=", sig_mode,
          " | calc_mode=", calc,
@@ -632,7 +637,7 @@ void OnTick()
    if(DailyLossHit()) return;
 
    // New-bar logic so we do not spam orders every tick
-   datetime bar = iTime(_Symbol, InpTrendTF, 0);
+   datetime bar = iTime(_Symbol, EffectiveTrendTF(), 0);
    if(bar == g_last_bar) return;
    g_last_bar = bar;
 
@@ -651,7 +656,7 @@ void OnTick()
    if(CopyBuffer(h_atr,0,0,4,atr)<4) return;
    if(CopyBuffer(h_rsi,0,0,4,rsi)<4) return;
 
-   double close1 = iClose(_Symbol, InpTrendTF, 1);
+   double close1 = iClose(_Symbol, EffectiveTrendTF(), 1);
    if(close1<=0 || atr[1]<=0) return;
 
    double atr_pts = atr[1] / _Point;
@@ -1099,6 +1104,12 @@ bool SpreadOk()
   }
 
 //+------------------------------------------------------------------+
+ENUM_TIMEFRAMES EffectiveTrendTF()
+{
+   if(InpTradeStyle==1) return InpScalpTF;
+   return InpTrendTF;
+}
+
 bool SessionOk()
 {
    MqlDateTime dt;

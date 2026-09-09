@@ -30,9 +30,13 @@ except Exception:  # noqa: BLE001
 
 def scan_symbol(symbol: str, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     if snapshot is None:
-        from helix.brain import build_market_snapshot
-
-        snapshot = build_market_snapshot(symbol)
+        from helix_v1.trade_style import is_scalp
+        if is_scalp():
+            from helix_v1.scalp import build_scalp_snapshot
+            snapshot = build_scalp_snapshot(symbol)
+        else:
+            from helix.brain import build_market_snapshot
+            snapshot = build_market_snapshot(symbol)
     structure = snapshot.get("structure") if isinstance(snapshot.get("structure"), dict) else {}
     regime = detect_regime(snapshot)
     signals = run_all(snapshot, structure, regime)

@@ -62,11 +62,17 @@ def run_helix_cycle(
     db = db or get_db()
 
     if snapshot is None:
-        from helix.brain import build_market_snapshot
-
-        snapshot = build_market_snapshot(symbol)
+        from helix_v1.trade_style import is_scalp
+        if is_scalp():
+            from helix_v1.scalp import build_scalp_snapshot
+            snapshot = build_scalp_snapshot(symbol)
+        else:
+            from helix.brain import build_market_snapshot
+            snapshot = build_market_snapshot(symbol)
     if headlines:
         snapshot = {**snapshot, "headlines": headlines}
+    from helix_v1.trade_style import current_trade_style, scalp_min_rr, scalp_sl_atr_mult
+    snapshot = {**snapshot, "trade_style": current_trade_style().value}
 
     structure = snapshot.get("structure") if isinstance(snapshot.get("structure"), dict) else {}
     # Multi-timeframe layer (fail soft; never removes H1 path)
@@ -181,6 +187,8 @@ def run_helix_cycle(
     except (TypeError, ValueError):
         spread_f = None
 
+    from helix_v1.trade_style import current_trade_style, scalp_min_rr, is_scalp
+    _rr = scalp_min_rr() if is_scalp() else 1.5
     proposed = ProposedOrder(
         symbol=symbol,
         action=action,
@@ -188,7 +196,7 @@ def run_helix_cycle(
         lots=size.lots,
         stop_distance=None,
         spread_points=spread_f,
-        rr=1.5,
+        rr=_rr,
     )
     verdict = RiskEngine().check(account, proposed)
 
@@ -207,7 +215,7 @@ def run_helix_cycle(
         rationale=fusion.rationale,
         mode=mode_e,
         stop_points=size.stop_points,
-        take_points=size.stop_points * 1.5 if size.stop_points else None,
+        take_points=(size.stop_points * (_rr if is_scalp() else 1.5)) if size.stop_points else None,
         meta={
             "state": fusion.state.value,
             "confluence": fusion.confluence_count,
@@ -222,6 +230,7 @@ def run_helix_cycle(
             "holly": snapshot.get("holly"),
         "idea_engine": snapshot.get("idea_engine"),
             "execution_path": "HELIX → latest.json → MetaTrader HELIX.mq5 EA",
+            "trade_style": current_trade_style().value,
         },
     )
 
@@ -274,6 +283,7 @@ def run_helix_cycle(
         "ts": datetime.now(timezone.utc).isoformat(),
         "symbol": symbol,
         "mode": mode_e.value,
+        "trade_style": current_trade_style().value,
         "regime": regime.to_dict(),
         "fusion": fusion.to_dict(),
         "portfolio": portfolio.to_dict(),

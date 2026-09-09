@@ -465,6 +465,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div><div class="lbl">Balance</div><div class="val" id="acc-bal">—</div></div>
         <div><div class="lbl">Equity</div><div class="val" id="acc-eq">—</div></div>
         <div><div class="lbl">Mode</div><div class="val" id="acc-mode">—</div></div>
+        <div><div class="lbl">Style</div><div class="val" id="acc-style">—</div></div>
         <div><div class="lbl">Kill switch</div><div class="val" id="acc-kill">—</div></div>
       </div>
     </section>
@@ -628,6 +629,7 @@ async function loadStatus() {
     $("acc-eq").textContent = fmt(j.account && j.account.equity, 2);
     $("acc-ccy").textContent = (j.account && j.account.currency) || "USD";
     $("acc-mode").textContent = j.mode || "—";
+    if ($("acc-style")) $("acc-style").textContent = j.trade_style || "swing";
     $("acc-kill").textContent = j.kill_switch ? "ON" : "off";
     $("acc-kill").style.color = j.kill_switch ? "var(--danger)" : "var(--ok)";
     $("sys-fresh").textContent = j.data_fresh ? "yes" : "stale/none";

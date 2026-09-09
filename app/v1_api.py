@@ -28,10 +28,15 @@ def _check_token(x_helix_token: str | None) -> None:
 @router.get("/status")
 def v1_status() -> dict[str, Any]:
     h = health_snapshot()
+    from helix_v1.trade_style import current_trade_style
+    from helix.config import AUTO_MARKET, MAX_TRADES_PER_DAY
     return {
         "ok": h.get("ok", True),
         "version": "1.0.0",
         "mode": current_mode().value,
+        "trade_style": current_trade_style().value,
+        "auto_market": AUTO_MARKET,
+        "max_trades_per_day": MAX_TRADES_PER_DAY,
         "kill_switch": is_kill_switch_on(),
         "health": h,
         "intelligence": "HELIX quant + optional LLM (xAI Grok → OpenAI → Anthropic)",
@@ -223,3 +228,9 @@ def v1_champion_cycle(
     syms = [s.strip().upper() for s in symbols.split(",")] if symbols else DEFAULT_UNIVERSE
     out = run_champion_cycle(symbols=syms)
     return {"ok": True, **out}
+
+
+@router.get("/trade-style")
+def v1_get_trade_style() -> dict[str, Any]:
+    from helix_v1.trade_style import current_trade_style
+    return {"trade_style": current_trade_style().value, "options": ["swing", "scalp"]}

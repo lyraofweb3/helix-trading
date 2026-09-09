@@ -94,3 +94,13 @@ Set `HELIX_AUTO_MARKET=1` (default). Brain cycles scan FX + gold + oil + news an
 - `HELIX_AUTO_MARKET=1` + `HELIX_POLL_SECONDS=300` — scan every 5 minutes; **only enter when gates clear**.
 - No fixed trade clock: EA `InpUseSessionFilter=false` (weekends still blocked).
 - Keep `HELIX_V1_LLM=0` so poll does not burn xAI credits; Auto Market uses quant + news.
+
+
+## Trade style: swing vs scalp
+
+| Env | Value | Behavior |
+|-----|-------|----------|
+| `HELIX_TRADE_STYLE` | `swing` (default) | H1 timing, D1/H4 bias — original path |
+| `HELIX_TRADE_STYLE` | `scalp` | M5 execution + M15 bias, tighter RR/SL |
+
+Both styles work on **demo and live**, with Auto Market + max 3 trades/day. Set on Railway; EA `InpTradeStyle` should match (0=swing, 1=scalp).

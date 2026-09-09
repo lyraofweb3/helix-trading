@@ -33,6 +33,8 @@ CONFLUENCE_KEYS = (
     "mtf_aligned",
     "mtf_htf_bias",
     "holly_agree",  # Trade Ideas Holly AI agrees with side
+    "npfx_rsi_ok",  # NetProfitFX-style RSI timing
+    "npfx_ema20_50",  # EMA 20/50 agreement (uses ema21/50 when present)
 )
 
 
@@ -112,6 +114,30 @@ def _confluence_flags(
     mtf_htf = str(mtf.get("htf_bias") or "")
     mtf_htf_ok = (side == "buy" and mtf_htf == "bullish") or (side == "sell" and mtf_htf == "bearish")
 
+    # NPFX paraphrased: RSI timing + EMA20/50 (HELIX ema21/ema50 or ema_fast/slow)
+    npfx_rsi = False
+    try:
+        if rsi is not None:
+            rv = float(rsi)
+            if side == "buy" and 30 <= rv <= 55:
+                npfx_rsi = True
+            elif side == "sell" and 45 <= rv <= 70:
+                npfx_rsi = True
+    except (TypeError, ValueError):
+        npfx_rsi = False
+    npfx_ema = False
+    e21 = snapshot.get("ema21", snapshot.get("ema_fast"))
+    e50 = snapshot.get("ema50", snapshot.get("ema_slow"))
+    last = snapshot.get("last_close")
+    try:
+        if e21 is not None and e50 is not None and last is not None:
+            if side == "buy" and float(last) >= float(e21) and float(e21) >= float(e50) * 0.999:
+                npfx_ema = True
+            elif side == "sell" and float(last) <= float(e21) and float(e21) <= float(e50) * 1.001:
+                npfx_ema = True
+    except (TypeError, ValueError):
+        npfx_ema = False
+
     return {
         "htf_bias": bool(htf and bias != "neutral"),
         "order_flow": bool(of_ok),
@@ -128,6 +154,8 @@ def _confluence_flags(
             and str((snapshot.get("holly") or {}).get("side") or "") == side
             and float((snapshot.get("holly") or {}).get("confidence") or 0) >= 0.35
         ),
+        "npfx_rsi_ok": bool(npfx_rsi),
+        "npfx_ema20_50": bool(npfx_ema),
     }
 
 

@@ -1,0 +1,14 @@
+{
+  "ts": "2026-09-09T00:00:00+00:00",
+  "source": "trade_ideas_holly",
+  "ideas": [
+    {
+      "symbol": "EURUSD",
+      "side": "buy",
+      "confidence": 0.62,
+      "thesis": "Holly AI: momentum + relative strength in EURUSD",
+      "strategy": "holly_channel",
+      "timeframe": "H1"
+    }
+  ]
+}

@@ -19,6 +19,7 @@ from helix_v1.sizing import size_position
 from helix_v1.strategies import run_all
 from helix_v1.trade_manager import manage_open_thesis
 from helix_v1.mtf import build_mtf
+from helix_v1.providers.holly import holly_vote_for_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,13 @@ def run_helix_cycle(
         db.insert_regime(symbol, regime.regime, regime.strength, regime.to_dict())
     except Exception as exc:  # noqa: BLE001
         logger.warning("regime persist failed: %s", exc)
+
+    # Trade Ideas Holly AI layer (fail soft; never replaces quant/MT5)
+    try:
+        snapshot = {**snapshot, "holly": holly_vote_for_symbol(symbol)}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Holly layer skipped: %s", type(exc).__name__)
+        snapshot = {**snapshot, "holly": {"available": False, "side": "flat", "confidence": 0.0}}
 
     signals = run_all(snapshot, structure, regime)
     fusion = fuse_signals(
@@ -203,6 +211,14 @@ def run_helix_cycle(
             "confluence": fusion.confluence_count,
             "regime": regime.regime,
             "risk": verdict.to_dict(),
+            "sources": [
+                "helix_quant",
+                "mtf",
+                *(["holly_ai"] if (snapshot.get("holly") or {}).get("available") else []),
+                "mt5_ea",
+            ],
+            "holly": snapshot.get("holly"),
+            "execution_path": "HELIX → latest.json → MetaTrader HELIX.mq5 EA",
         },
     )
 
@@ -265,5 +281,6 @@ def run_helix_cycle(
         "explanation": explanation,
         "strategies": [s.to_dict() for s in signals],
         "mtf": snapshot.get("mtf"),
+        "holly": snapshot.get("holly"),
         "intelligence": "HELIX quant fusion — LLM layer optional (xAI Grok → OpenAI → Anthropic)",
     }

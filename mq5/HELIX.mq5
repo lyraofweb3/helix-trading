@@ -1,3 +1,4 @@
+// HELIX fused sources: quant brain + Trade Ideas Holly AI votes + MT5 EA execution
 //+------------------------------------------------------------------+
 //| HELIX.mq5                                                        |
 //| HELIX trading bot for Exness MT5 (forex & stock CFDs)            |

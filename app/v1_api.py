@@ -139,3 +139,44 @@ def v1_mtf(symbol: str) -> dict[str, Any]:
     offline = os.environ.get("HELIX_MTF_OFFLINE", "").strip() in {"1", "true", "yes"}
     mtf = build_mtf(symbol.upper(), live=not offline)
     return {"ok": True, "symbol": symbol.upper(), "mtf": mtf.to_dict()}
+
+
+@router.get("/holly/status")
+def v1_holly_status(symbol: str = Query("EURUSD")) -> dict[str, Any]:
+    from helix_v1.providers.holly import ApiHollyProvider, holly_vote_for_symbol, ideas_path
+
+    vote = holly_vote_for_symbol(symbol.upper())
+    return {
+        "ok": True,
+        "provider": "trade_ideas_holly",
+        "api_configured": ApiHollyProvider().configured,
+        "ideas_path": str(ideas_path()),
+        "vote": vote,
+        "mt5_path": "signals/latest.json → HELIX.mq5 EA",
+    }
+
+
+@router.get("/holly/ideas")
+def v1_holly_ideas(symbol: str | None = None) -> dict[str, Any]:
+    from helix_v1.providers.holly import collect_holly_ideas
+
+    ideas = collect_holly_ideas(symbol.upper() if symbol else None)
+    return {"ok": True, "count": len(ideas), "ideas": [i.to_dict() for i in ideas]}
+
+
+@router.post("/holly/ingest")
+def v1_holly_ingest(
+    body: dict[str, Any] | list[Any] | None = None,
+    x_helix_token: str | None = Header(default=None, alias="X-HELIX-Token"),
+) -> dict[str, Any]:
+    """Ingest Trade Ideas / Holly alerts (webhook or manual JSON)."""
+    _check_token(x_helix_token)
+    from helix_v1.providers.holly import ingest_payload
+
+    incoming = ingest_payload(body or {})
+    return {
+        "ok": True,
+        "ingested": len(incoming),
+        "ideas": [i.to_dict() for i in incoming],
+        "note": "Holly ideas fuse into HELIX quant → risk → MT5 EA; Holly never trades alone.",
+    }

@@ -66,3 +66,15 @@ PYTHONPATH=. .venv/bin/pytest -q
 ## Risk philosophy
 
 Expectancy + drawdown control over win-rate theater. The previously discussed 74:26 figure is a **benchmark to track**, not a guarantee.
+
+## Trade Ideas (Holly AI) × MetaTrader EA
+
+HELIX fuses **Trade Ideas Holly AI** ideas with the existing **MetaTrader HELIX.mq5** execution path:
+
+1. Ingest Holly alerts via `POST /api/v1/holly/ingest` or `data/holly_ideas.json`
+2. Optional live API when `HOLLY_API_URL` + `TRADE_IDEAS_API_KEY` / `HOLLY_API_KEY` are set
+3. Holly becomes one strategy vote + `holly_agree` confluence flag
+4. HELIX risk engine still gates every order
+5. Approved plans write `signals/latest.json` for **HELIX.mq5** on MT5
+
+Holly never trades alone. Quant + risk + EA remain in control.

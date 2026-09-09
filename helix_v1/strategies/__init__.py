@@ -10,6 +10,7 @@ from helix_v1.strategies.reversal import ReversalStrategy
 from helix_v1.strategies.session import SessionStrategy
 from helix_v1.strategies.structure_smc import StructureSMCStrategy
 from helix_v1.strategies.trend import TrendStrategy
+from helix_v1.strategies.holly_ai import HollyAIStrategy
 
 ALL_STRATEGIES = [
     TrendStrategy(),
@@ -19,6 +20,7 @@ ALL_STRATEGIES = [
     StructureSMCStrategy(),
     SessionStrategy(),
     NewsReactiveStrategy(),
+    HollyAIStrategy(),
 ]
 
 

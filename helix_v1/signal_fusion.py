@@ -32,6 +32,7 @@ CONFLUENCE_KEYS = (
     "atr_regime_ok",
     "mtf_aligned",
     "mtf_htf_bias",
+    "holly_agree",  # Trade Ideas Holly AI agrees with side
 )
 
 
@@ -122,6 +123,11 @@ def _confluence_flags(
         "atr_regime_ok": bool(atr_ok),
         "mtf_aligned": bool(mtf_aligned),
         "mtf_htf_bias": bool(mtf_htf_ok),
+        "holly_agree": bool(
+            (snapshot.get("holly") or {}).get("available")
+            and str((snapshot.get("holly") or {}).get("side") or "") == side
+            and float((snapshot.get("holly") or {}).get("confidence") or 0) >= 0.35
+        ),
     }
 
 
@@ -222,6 +228,15 @@ def fuse_signals(
         score = min(1.0, score + 0.08 * float(mtf.get("alignment_score") or 0.5))
     elif mtf.get("alignment") == "conflicting":
         score = max(0.0, score * 0.75)
+    # Holly agree boost (Trade Ideas) — additive, never solo entry
+    holly = snapshot.get("holly") or {}
+    if (
+        holly.get("available")
+        and preferred in {"buy", "sell"}
+        and holly.get("side") == preferred
+        and float(holly.get("confidence") or 0) >= 0.35
+    ):
+        score = min(1.0, score + 0.06 * float(holly.get("confidence") or 0.5))
 
     if preferred == "hold":
         state = FusionState.WATCH if max(buy_n, sell_n) > 0.12 else FusionState.NO_TRADE

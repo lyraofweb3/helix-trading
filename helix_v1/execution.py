@@ -120,6 +120,10 @@ class Mt5BridgeAdapter:
         SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
         payload = plan.to_signal_payload()
         payload["source"] = "helix_v1-mt5"
+        payload.setdefault("meta", {})
+        payload["meta"]["bridge"] = "mt5_ea_bridge"
+        payload["meta"]["ea"] = "HELIX.mq5"
+        payload["meta"]["fused_with"] = payload["meta"].get("sources") or ["helix_quant", "mt5_ea"]
         text = json.dumps(payload, ensure_ascii=False)
         self.signal_path.write_text(text + "\n", encoding="utf-8")
         with self.journal_path.open("a", encoding="utf-8") as fh:

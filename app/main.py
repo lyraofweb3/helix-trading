@@ -512,6 +512,20 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="meta" id="mtf-notes" style="margin-top:8px"></div>
     </section>
 
+    <section class="card span6" id="sec-holly">
+      <div class="sec-title"><strong>Trade Ideas · Holly AI</strong><span class="pill" id="holly-pill">—</span></div>
+      <div class="kv">
+        <div><div class="lbl">Vote</div><div class="val" id="holly-side">—</div></div>
+        <div><div class="lbl">Confidence</div><div class="val" id="holly-conf">—</div></div>
+        <div><div class="lbl">API key</div><div class="val" id="holly-api">—</div></div>
+        <div><div class="lbl">MT5 EA</div><div class="val" id="holly-mt5">HELIX.mq5</div></div>
+      </div>
+      <div class="meta" id="holly-thesis" style="margin-top:8px"></div>
+      <div class="row">
+        <button id="btn-holly" class="secondary" type="button">Refresh Holly</button>
+      </div>
+    </section>
+
     <section class="card span6" id="sec-positions">
       <div class="sec-title"><strong>Positions</strong><span class="pill">signal bridge</span></div>
       <div class="meta" id="pos-box">No live broker positions in this app — MT5 EA reads signals/latest.json.</div>
@@ -691,7 +705,24 @@ async function loadPerformance() {
   } catch (e) {}
 }
 
+async function loadHolly(symbol) {
+  symbol = symbol || "EURUSD";
+  try {
+    const r = await fetch("/api/v1/holly/status?symbol=" + encodeURIComponent(symbol));
+    const j = await r.json();
+    const v = j.vote || {};
+    $("holly-side").textContent = v.available ? (v.side || "flat") : "no idea";
+    $("holly-conf").textContent = v.confidence != null ? fmt(v.confidence, 2) : "—";
+    $("holly-api").textContent = j.api_configured ? "configured" : "file/webhook";
+    $("holly-pill").textContent = v.available ? "live" : "idle";
+    $("holly-thesis").textContent = v.thesis || j.mt5_path || "";
+  } catch (e) {
+    $("holly-side").textContent = "n/a";
+  }
+}
+
 async function loadMtf(symbol) {
+
   symbol = symbol || "EURUSD";
   try {
     const r = await fetch("/api/v1/mtf/" + encodeURIComponent(symbol));
@@ -791,7 +822,8 @@ async function kill(active) {
 }
 
 function refreshAll() {
-  loadStatus(); loadSignal(); loadJournal(); loadPerformance(); loadExplain(); loadMtf('EURUSD');
+  if ($("btn-holly")) $("btn-holly").onclick = () => loadHolly("EURUSD");
+loadStatus(); loadSignal(); loadJournal(); loadPerformance(); loadExplain(); loadMtf('EURUSD'); loadHolly('EURUSD');
 }
 
 $("btn-refresh").onclick = refreshAll;

@@ -78,3 +78,11 @@ HELIX fuses **Trade Ideas Holly AI** ideas with the existing **MetaTrader HELIX.
 5. Approved plans write `signals/latest.json` for **HELIX.mq5** on MT5
 
 Holly never trades alone. Quant + risk + EA remain in control.
+
+
+## Auto Market (default)
+
+Set `HELIX_AUTO_MARKET=1` (default). Brain cycles scan FX + gold + oil + news and only act on the top-ranked setup.
+
+- Override single symbol: `HELIX_AUTO_MARKET=0` or `HELIX_FORCE_SYMBOL=EURUSD`
+- Attach HELIX EA on charts for symbols you allow (EURUSDm, XAUUSDm, USOILm, …). EA only executes when `latest.json` symbol matches the chart.

@@ -11,13 +11,21 @@ from helix_v1.strategies import run_all
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_UNIVERSE = [
-    "EURUSD",
-    "GBPUSD",
-    "USDJPY",
-    "XAUUSD",
-    "USOIL",
-]
+try:
+    from helix.config import SYMBOLS as DEFAULT_UNIVERSE
+except Exception:  # noqa: BLE001
+    DEFAULT_UNIVERSE = [
+        "EURUSD",
+        "GBPUSD",
+        "USDJPY",
+        "AUDUSD",
+        "USDCAD",
+        "USDCHF",
+        "NZDUSD",
+        "XAUUSD",
+        "USOIL",
+        "UKOIL",
+    ]
 
 
 def scan_symbol(symbol: str, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:

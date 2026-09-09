@@ -112,6 +112,14 @@ def v1_kill_switch(
     return {"ok": True, "kill_switch": result}
 
 
+@router.post("/auto")
+def v1_auto_market(symbols: str | None = Query(None)) -> dict[str, Any]:
+    """Scan universe + news; trade only the best market. Primary autonomous path."""
+    from helix_v1.champion import run_champion_cycle
+    syms = [s.strip().upper() for s in symbols.split(",") if s.strip()] if symbols else None
+    return run_champion_cycle(symbols=syms)
+
+
 @router.post("/cycle")
 def v1_cycle(
     symbol: str = Query(DEFAULT_SYMBOL),

@@ -135,9 +135,55 @@ def run_once(
     """
     One brain cycle: pull news, build live snapshot, call xAI → OpenAI → Claude, write signals.
     Returns the written signal dict (no API key material).
+
+    Auto market (default): when HELIX_AUTO_MARKET=1 (default) and symbol is DEFAULT/AUTO,
+    HELIX scans FX + gold + oil + news and only acts on the best-ranked market.
     """
     import os
+    from helix.config import AUTO_MARKET
+
+    sym_raw = (symbol or DEFAULT_SYMBOL).strip().upper()
+    auto = AUTO_MARKET and sym_raw in {DEFAULT_SYMBOL, "AUTO", "BEST", "SCAN", "*"}
+    # Explicit override: HELIX_AUTO_MARKET=0 keeps single-symbol mode
+    if os.environ.get("HELIX_FORCE_SYMBOL", "").strip():
+        auto = False
+        sym_raw = os.environ["HELIX_FORCE_SYMBOL"].strip().upper()
+
+    if auto:
+        from helix_v1.champion import run_champion_cycle
+        logger.info("AUTO MARKET — scanning universe + news for best setup…")
+        champ = run_champion_cycle()
+        plan = champ.get("plan") or {}
+        # Ensure signal file reflects champion plan (pipeline already writes when acted)
+        if champ.get("acted") and isinstance(champ.get("result"), dict):
+            # result already wrote signal via pipeline
+            path = LATEST_SIGNAL_PATH
+            if path.is_file():
+                return json.loads(path.read_text(encoding="utf-8"))
+        # Hold / gate: write explicit hold so EA stays flat
+        from helix.decision import TradeDecision
+        picked = (champ.get("picked") or {}).get("symbol") or DEFAULT_SYMBOL
+        decision = TradeDecision(
+            action="hold",
+            symbol=str(plan.get("symbol") or picked),
+            confidence=float((champ.get("picked") or {}).get("champion_score") or 0.0),
+            rationale="auto_market: " + str(champ.get("reason") or champ.get("gate_fail") or "scanning"),
+            stop_hint=None,
+            take_hint=None,
+        )
+        path = write_signal(
+            decision,
+            meta={
+                "auto_market": True,
+                "champion": champ,
+                "provider": "helix_auto_market",
+            },
+        )
+        logger.info("AUTO MARKET hold — gates not cleared (%s)", champ.get("gate_fail") or champ.get("reason"))
+        return json.loads(path.read_text(encoding="utf-8"))
+
     if os.environ.get("HELIX_V1", "").strip() in {"1", "true", "yes"}:
+        symbol = sym_raw
         from helix_v1.pipeline import run_helix_cycle
         out = run_helix_cycle(symbol)
         from helix.decision import TradeDecision

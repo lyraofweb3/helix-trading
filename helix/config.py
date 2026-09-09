@@ -141,6 +141,8 @@ SYMBOLS = [
 ]
 
 DEFAULT_SYMBOL = "EURUSD"
+# When true (default), brain/API pick best market across the universe — user does not choose symbol
+AUTO_MARKET = (os.environ.get("HELIX_AUTO_MARKET", "1").strip().lower() not in {"0", "false", "no", "off"})
 
 # --- risk (mirrors HELIX.mq5) ---
 RISK_PERCENT = 0.5          # InpRiskPercent

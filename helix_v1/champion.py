@@ -19,6 +19,59 @@ from helix_v1.signal_fusion import FusionState
 logger = logging.getLogger(__name__)
 
 
+# Symbol → headline keyword hints (auto market intelligence)
+_NEWS_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "EURUSD": ("euro", "ecb", "eurozone", "eur/", "germany", "lagarde"),
+    "GBPUSD": ("pound", "sterling", "boe", "uk ", "britain", "bailey"),
+    "USDJPY": ("yen", "boj", "japan", "usd/jpy", "tokyo"),
+    "AUDUSD": ("aussie", "australia", "rba", "aud/"),
+    "USDCAD": ("loonie", "canada", "boc", "oil", "cad"),
+    "USDCHF": ("swiss", "snb", "franc", "chf"),
+    "XAUUSD": ("gold", "xau", "bullion", "safe haven", "yield"),
+    "USOIL": ("oil", "wti", "crude", "opec", "petroleum", "inventory"),
+    "UKOIL": ("brent", "oil", "opec", "crude", "north sea"),
+}
+
+
+def news_bias_for_symbol(symbol: str, headlines: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """Score how news leans for a symbol. Returns bias buy/sell/flat + heat 0..1."""
+    if not headlines:
+        return {"bias": "flat", "heat": 0.0, "hits": 0, "titles": []}
+    keys = _NEWS_KEYWORDS.get(symbol.upper(), (symbol[:3].lower(),))
+    # Generic tone words. Asset-specific overrides below.
+    bull = ("rally", "surge", "gain", "hawkish", "beat", "growth", "demand", "risk-on", "strong", "climb", "jump")
+    bear = ("fall", "drop", "slide", "dovish", "miss", "recession", "risk-off", "weak", "slash", "plunge", "tumble")
+    # Gold/oil often *rise* on geopolitical stress — do not treat "war" as bear for them
+    if symbol.upper() not in {"XAUUSD", "USOIL", "UKOIL"}:
+        bear = bear + ("war", "conflict")
+    else:
+        bull = bull + ("war", "safe haven", "geopolit")
+    hits = 0
+    bull_n = bear_n = 0
+    titles: list[str] = []
+    for h in headlines:
+        title = str(h.get("title") or "").lower()
+        if not any(k in title for k in keys):
+            continue
+        hits += 1
+        titles.append(str(h.get("title") or "")[:120])
+        if any(b in title for b in bull):
+            bull_n += 1
+        if any(b in title for b in bear):
+            bear_n += 1
+    if hits == 0:
+        return {"bias": "flat", "heat": 0.0, "hits": 0, "titles": []}
+    heat = min(1.0, hits / 4.0)
+    if bull_n > bear_n:
+        bias = "buy"
+    elif bear_n > bull_n:
+        bias = "sell"
+    else:
+        bias = "flat"
+    return {"bias": bias, "heat": heat, "hits": hits, "titles": titles[:5]}
+
+
+
 def _soft_weights() -> dict[str, float]:
     """Optional soft multipliers from learning suggestions (never rewrite live logic)."""
     try:
@@ -41,11 +94,17 @@ def rank_score(row: dict[str, Any], weights: dict[str, float] | None = None) -> 
     state = str(row.get("state") or "")
     action = str(row.get("action") or "hold")
 
-    base = score * 0.55 + min(conf / 8.0, 1.0) * 0.25 + odds * 0.20
+    news_heat = float(row.get("news_heat") or 0.0)
+    news_bias = str(row.get("news_bias") or "flat")
+    base = score * 0.45 + min(conf / 8.0, 1.0) * 0.22 + odds * 0.18 + news_heat * 0.15
     if state in (FusionState.HIGH_CONFIDENCE.value, "HIGH_CONFIDENCE", "HIGH_CONFIDENCE_SETUP"):
         base += 0.08
     elif state in (FusionState.VALID_SETUP.value, "VALID_SETUP"):
         base += 0.04
+    if action in ("buy", "sell") and news_bias == action:
+        base += 0.06 * news_heat
+    elif action in ("buy", "sell") and news_bias in ("buy", "sell") and news_bias != action:
+        base *= 0.75  # news conflict — demote
     if action not in ("buy", "sell"):
         base *= 0.35
 
@@ -80,9 +139,28 @@ def enrich_scan_row(row: dict[str, Any], snapshot: dict[str, Any] | None = None)
     return out
 
 
-def champion_scan(symbols: list[str] | None = None) -> list[dict[str, Any]]:
+def champion_scan(
+    symbols: list[str] | None = None,
+    headlines: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    if headlines is None:
+        try:
+            from helix.news import fetch_headlines
+            headlines = fetch_headlines()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("champion news fetch failed: %s", type(exc).__name__)
+            headlines = []
     rows = scan_market(symbols or DEFAULT_UNIVERSE)
-    enriched = [enrich_scan_row(r) for r in rows]
+    enriched: list[dict[str, Any]] = []
+    for r in rows:
+        e = enrich_scan_row(r)
+        nb = news_bias_for_symbol(str(e.get("symbol") or ""), headlines)
+        e["news_bias"] = nb["bias"]
+        e["news_heat"] = nb["heat"]
+        e["news_hits"] = nb["hits"]
+        e["news_titles"] = nb["titles"]
+        e["champion_score"] = rank_score(e, _soft_weights())
+        enriched.append(e)
     enriched.sort(key=lambda r: float(r.get("champion_score") or 0), reverse=True)
     return enriched
 
@@ -103,7 +181,12 @@ def run_champion_cycle(
     if min_score is None:
         min_score = float(os.environ.get("HELIX_CHAMPION_MIN_SCORE", "0.55") or 0.55)
 
-    ranked = champion_scan(symbols)
+    try:
+        from helix.news import fetch_headlines
+        headlines = fetch_headlines()
+    except Exception:  # noqa: BLE001
+        headlines = []
+    ranked = champion_scan(symbols, headlines=headlines)
     top = ranked[0] if ranked else None
     gate_fail: list[str] = []
 
@@ -130,20 +213,24 @@ def run_champion_cycle(
             "ts": datetime.now(timezone.utc).isoformat(),
             "champion": True,
             "acted": False,
+            "auto_market": True,
             "reason": "no_trade_gate",
             "gate_fail": gate_fail,
             "ranked": ranked[:10],
-            "plan": {"action": "hold", "symbol": (top or {}).get("symbol"), "rationale": "champion gate"},
+            "news_count": len(headlines),
+            "plan": {"action": "hold", "symbol": (top or {}).get("symbol"), "rationale": "champion gate — waiting for best market"},
         }
 
     symbol = str(top["symbol"])
-    result = run_helix_cycle(symbol, mode=mode)
+    result = run_helix_cycle(symbol, mode=mode, headlines=headlines)
     return {
         "ts": datetime.now(timezone.utc).isoformat(),
         "champion": True,
         "acted": True,
+        "auto_market": True,
         "picked": top,
         "ranked": ranked[:10],
+        "news_count": len(headlines),
         "result": result,
         "plan": result.get("plan"),
     }

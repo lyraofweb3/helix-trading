@@ -476,9 +476,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <p id="rationale" class="meta"></p>
       <div class="row">
         <button id="btn-refresh" class="secondary" type="button">Refresh</button>
-        <button id="btn-champion" type="button">Champion</button>
-      <button id="btn-run" type="button">Run once</button>
-        <button id="btn-scan" class="secondary" type="button">Scan</button>
+        <button id="btn-champion" type="button">Auto Market</button>
+      <button id="btn-run" class="secondary" type="button">Run once</button>
+        <button id="btn-scan" class="secondary" type="button">Scan ranks</button>
       </div>
       <input id="token" type="password" placeholder="X-HELIX-Token (if set)" autocomplete="off"/>
       <div class="err" id="err"></div>
@@ -486,7 +486,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     <section class="card span6" id="sec-market">
       <div class="sec-title"><strong>Market / Scan</strong><span class="pill" id="scan-count">0</span></div>
-      <div id="scan-list" class="meta">Tap Scan to rank symbols by fusion score (no orders).</div>
+      <div id="scan-list" class="meta">HELIX auto-picks the best market (FX / gold / oil) from scan + news. Tap Auto Market or Run once.</div>
     </section>
 
     <section class="card span6" id="sec-regime">
@@ -790,7 +790,8 @@ async function runChampion() {
     if (typeof paintSignal === "function") paintSignal(plan);
     const top = j.picked || j.top || (j.ranked||[])[0];
     if (top && $("scan-list")) {
-      $("scan-list").innerHTML = `<div class="meta"><strong>Champion:</strong> ${top.symbol} score ${Number(top.champion_score||0).toFixed(2)} · ${top.state||""} · ${top.action||""}</div>` + ($("scan-list").innerHTML||"");
+      const news = top.news_bias ? ` · news ${top.news_bias}` : "";
+      $("scan-list").innerHTML = `<div class="meta"><strong>Auto Market:</strong> ${top.symbol} score ${Number(top.champion_score||0).toFixed(2)} · ${top.state||""} · ${top.action||""}${news}</div>` + ($("scan-list").innerHTML||"");
     }
     if (typeof loadJournal === "function") await loadJournal();
     if (typeof loadPerformance === "function") await loadPerformance();

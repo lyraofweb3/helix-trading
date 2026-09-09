@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    SIGNAL_DIR=/app/signals \
+    HELIX_POLL_SECONDS=300 \
+    PORT=8080
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY helix ./helix
+COPY app ./app
+COPY cli_main.py ./cli_main.py
+COPY mq5 ./mq5
+RUN mkdir -p /app/signals
+
+EXPOSE 8080
+
+# Railway sets $PORT; default 8080 locally
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

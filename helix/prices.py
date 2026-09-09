@@ -333,3 +333,52 @@ def fetch_snapshot(symbol: str) -> dict[str, Any]:
         "price_provider": "yahoo",
         "structure": structure,
     }
+
+
+# --- Multi-timeframe intervals (additive HELIX 1.0+) ---
+# Yahoo chart intervals we use; 1m/5m may be sparse on FX — fail soft per TF.
+MTF_SPECS: dict[str, tuple[str, str, int]] = {
+    # label: (yahoo_interval, range, min_bars)
+    "1m": ("1m", "1d", 30),
+    "5m": ("5m", "5d", 40),
+    "15m": ("15m", "10d", 40),
+    "30m": ("30m", "30d", 40),
+    "1H": ("60m", "60d", 50),
+    "4H": ("60m", "60d", 50),  # resampled from H1 when needed
+    "1D": ("1d", "1y", 30),
+}
+
+
+def fetch_ohlc_interval(
+    symbol: str,
+    interval: str,
+    range_: str,
+    *,
+    min_bars: int = 30,
+) -> tuple[list[float], list[float], list[float], list[float]]:
+    """Generic Yahoo OHLC fetch — additive helper for MTF engine."""
+    return _fetch_yahoo_ohlc(symbol, interval, range_, min_bars=min_bars)
+
+
+def resample_ohlc_to_4h(
+    opens: list[float],
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+) -> tuple[list[float], list[float], list[float], list[float]]:
+    """Resample H1 bars into 4H buckets (every 4 bars)."""
+    n = len(closes)
+    if n < 4:
+        return opens, highs, lows, closes
+    o4: list[float] = []
+    h4: list[float] = []
+    l4: list[float] = []
+    c4: list[float] = []
+    for i in range(0, n - (n % 4), 4):
+        chunk_h = highs[i : i + 4]
+        chunk_l = lows[i : i + 4]
+        o4.append(opens[i])
+        h4.append(max(chunk_h))
+        l4.append(min(chunk_l))
+        c4.append(closes[i + 3])
+    return o4, h4, l4, c4

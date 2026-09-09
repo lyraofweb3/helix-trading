@@ -18,6 +18,7 @@ from helix_v1.signal_fusion import FusionState, fuse_signals
 from helix_v1.sizing import size_position
 from helix_v1.strategies import run_all
 from helix_v1.trade_manager import manage_open_thesis
+from helix_v1.mtf import build_mtf
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,14 @@ def run_helix_cycle(
         snapshot = {**snapshot, "headlines": headlines}
 
     structure = snapshot.get("structure") if isinstance(snapshot.get("structure"), dict) else {}
+    # Multi-timeframe layer (fail soft; never removes H1 path)
+    try:
+        skip_live_mtf = os.environ.get("HELIX_MTF_OFFLINE", "").strip() in {"1", "true", "yes"}
+        mtf = build_mtf(symbol, live=not skip_live_mtf)
+        snapshot = {**snapshot, "mtf": mtf.to_dict()}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("MTF layer skipped: %s", type(exc).__name__)
+        snapshot = {**snapshot, "mtf": {"alignment": "mixed", "htf_bias": "neutral", "notes": ["mtf_error"]}}
     regime = detect_regime(snapshot)
     try:
         db.insert_regime(symbol, regime.regime, regime.strength, regime.to_dict())
@@ -255,5 +264,6 @@ def run_helix_cycle(
         "execution": exec_result,
         "explanation": explanation,
         "strategies": [s.to_dict() for s in signals],
+        "mtf": snapshot.get("mtf"),
         "intelligence": "HELIX quant fusion — LLM layer optional (xAI Grok → OpenAI → Anthropic)",
     }

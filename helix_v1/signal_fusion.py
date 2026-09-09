@@ -30,6 +30,8 @@ CONFLUENCE_KEYS = (
     "news_clear",
     "ema_structure",
     "atr_regime_ok",
+    "mtf_aligned",
+    "mtf_htf_bias",
 )
 
 
@@ -104,6 +106,11 @@ def _confluence_flags(
     if regime.regime == "high_vol":
         atr_ok = False
 
+    mtf = snapshot.get("mtf") or {}
+    mtf_aligned = str(mtf.get("alignment") or "") == "aligned"
+    mtf_htf = str(mtf.get("htf_bias") or "")
+    mtf_htf_ok = (side == "buy" and mtf_htf == "bullish") or (side == "sell" and mtf_htf == "bearish")
+
     return {
         "htf_bias": bool(htf and bias != "neutral"),
         "order_flow": bool(of_ok),
@@ -113,6 +120,8 @@ def _confluence_flags(
         "news_clear": bool(news_clear),
         "ema_structure": bool(ema_ok),
         "atr_regime_ok": bool(atr_ok),
+        "mtf_aligned": bool(mtf_aligned),
+        "mtf_htf_bias": bool(mtf_htf_ok),
     }
 
 
@@ -207,6 +216,12 @@ def fuse_signals(
     # Confidence ≈ 0.35 + 0.1 * confluence (playbook) blended with vote edge
     raw = 0.35 + 0.1 * conf_count + 0.25 * edge + 0.2 * max(buy_n, sell_n)
     score = max(0.0, min(1.0, raw))
+    # MTF alignment boost (additive HELIX 1.0+)
+    mtf = snapshot.get("mtf") or {}
+    if mtf.get("alignment") == "aligned" and preferred in {"buy", "sell"}:
+        score = min(1.0, score + 0.08 * float(mtf.get("alignment_score") or 0.5))
+    elif mtf.get("alignment") == "conflicting":
+        score = max(0.0, score * 0.75)
 
     if preferred == "hold":
         state = FusionState.WATCH if max(buy_n, sell_n) > 0.12 else FusionState.NO_TRADE

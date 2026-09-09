@@ -124,3 +124,18 @@ def v1_cycle(
     use_llm = os.environ.get("HELIX_V1_LLM", "").strip() in {"1", "true", "yes"}
     out = run_helix_cycle(symbol.upper(), use_llm=use_llm)
     return {"ok": True, "result": out}
+
+
+@router.get("/analytics")
+def v1_analytics() -> dict[str, Any]:
+    from helix_v1.analytics import dashboard_analytics
+    return {"ok": True, **dashboard_analytics()}
+
+
+@router.get("/mtf/{symbol}")
+def v1_mtf(symbol: str) -> dict[str, Any]:
+    import os
+    from helix_v1.mtf import build_mtf
+    offline = os.environ.get("HELIX_MTF_OFFLINE", "").strip() in {"1", "true", "yes"}
+    mtf = build_mtf(symbol.upper(), live=not offline)
+    return {"ok": True, "symbol": symbol.upper(), "mtf": mtf.to_dict()}

@@ -19,3 +19,4 @@ signals/*.jsonl
 signals/*.log
 signals/*.pid
 !signals/.gitkeep
+data/

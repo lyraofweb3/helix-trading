@@ -128,6 +128,36 @@ def run_once(
     One brain cycle: pull news, build live snapshot, call xAI → OpenAI → Claude, write signals.
     Returns the written signal dict (no API key material).
     """
+    import os
+    if os.environ.get("HELIX_V1", "").strip() in {"1", "true", "yes"}:
+        from helix_v1.pipeline import run_helix_cycle
+        out = run_helix_cycle(symbol)
+        from helix.decision import TradeDecision
+        plan = out.get("plan") or {}
+        conf = float(plan.get("confidence") or 0.0)
+        conf = max(0.0, min(1.0, conf))
+        sh = plan.get("stop_hint")
+        th = plan.get("take_hint")
+        decision = TradeDecision(
+            action=str(plan.get("action") or "hold"),
+            symbol=str(plan.get("symbol") or symbol),
+            confidence=conf,
+            rationale=str(plan.get("rationale") or "helix_v1"),
+            stop_hint=None if sh is None else str(sh),
+            take_hint=None if th is None else str(th),
+        )
+        path = write_signal(
+            decision,
+            meta={
+                "helix_v1": True,
+                "provider": "helix_v1_quant",
+                "fusion": out.get("fusion"),
+                "regime": out.get("regime"),
+            },
+        )
+        logger.info("HELIX_V1 cycle → %s action=%s", path, decision.action)
+        return json.loads(path.read_text(encoding="utf-8"))
+
     logger.info("Fetching headlines…")
     headlines = fetch_headlines()
     logger.info("Got %d headlines", len(headlines))

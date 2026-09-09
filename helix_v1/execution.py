@@ -188,6 +188,68 @@ class PaperAdapter:
         return {"ok": True, "adapter": self.name, "order_id": order_id, "payload": payload}
 
 
+class MetaApiAdapter:
+    """Cloud MT5 via MetaAPI — no home PC required. Additive to Mt5BridgeAdapter."""
+
+    name = "metaapi"
+
+    def __init__(self, also_write_signal_file: bool = True) -> None:
+        self.also_write_signal_file = also_write_signal_file
+
+    def submit(self, plan: ExecutionPlan) -> dict[str, Any]:
+        ModeGuard(plan.mode).assert_can_submit_live()
+        from helix_v1.providers.metaapi import (
+            close_symbol_positions,
+            metaapi_configured,
+            place_market_order,
+        )
+
+        if not metaapi_configured():
+            return {"ok": False, "adapter": self.name, "error": "METAAPI_TOKEN/ACCOUNT_ID missing"}
+
+        payload = plan.to_signal_payload()
+        payload["source"] = "helix_v1-metaapi"
+        payload.setdefault("meta", {})
+        payload["meta"]["bridge"] = "metaapi_cloud"
+        payload["meta"]["execution_path"] = "HELIX Railway → MetaAPI cloud MT5 → Exness"
+
+        result: dict[str, Any]
+        if plan.action == "close":
+            result = close_symbol_positions(plan.symbol)
+        elif plan.action in ("buy", "sell"):
+            result = place_market_order(
+                symbol=plan.symbol,
+                side=plan.action,
+                volume=float(plan.lots or 0.01),
+                stop_loss=plan.stop,
+                take_profit=plan.take,
+                comment="HELIX",
+            )
+        else:
+            # hold — still journal signal, no broker order
+            result = {"ok": True, "skipped": True, "reason": "hold"}
+
+        helix_db.insert_order(
+            symbol=plan.symbol,
+            action=plan.action,
+            lots=plan.lots,
+            price=plan.entry,
+            stop=plan.stop,
+            take=plan.take,
+            status="metaapi_ok" if result.get("ok") else "metaapi_fail",
+            mode=plan.mode,
+            reason=plan.rationale,
+            meta={**(plan.meta or {}), "metaapi": result},
+        )
+        if self.also_write_signal_file:
+            SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
+            text = json.dumps({**payload, "metaapi": result}, ensure_ascii=False)
+            LATEST_SIGNAL_PATH.write_text(text + "\n", encoding="utf-8")
+            with JOURNAL_PATH.open("a", encoding="utf-8") as fh:
+                fh.write(text + "\n")
+        return {"ok": bool(result.get("ok")), "adapter": self.name, "result": result, "payload": payload}
+
+
 class BacktestAdapter:
     name = "backtest"
 
@@ -210,6 +272,8 @@ class BacktestAdapter:
 def get_adapter(mode: Mode | str) -> BrokerAdapter:
     guard = ModeGuard(mode)
     name = guard.choose_adapter_name()
+    if name == "metaapi":
+        return MetaApiAdapter()
     if name == "mt5":
         return Mt5BridgeAdapter()
     if name == "backtest":

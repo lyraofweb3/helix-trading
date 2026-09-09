@@ -467,6 +467,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div><div class="lbl">Mode</div><div class="val" id="acc-mode">—</div></div>
         <div><div class="lbl">Style</div><div class="val" id="acc-style">—</div></div>
         <div><div class="lbl">Kill switch</div><div class="val" id="acc-kill">—</div></div>
+        <div><div class="lbl">Cloud exec</div><div class="val" id="acc-exec">—</div></div>
       </div>
     </section>
 
@@ -631,6 +632,7 @@ async function loadStatus() {
     $("acc-mode").textContent = j.mode || "—";
     if ($("acc-style")) $("acc-style").textContent = j.trade_style || "swing";
     $("acc-kill").textContent = j.kill_switch ? "ON" : "off";
+    if ($("acc-exec")) $("acc-exec").textContent = (j.metaapi_configured ? "MetaAPI" : (j.executor || "mt5/file"));
     $("acc-kill").style.color = j.kill_switch ? "var(--danger)" : "var(--ok)";
     $("sys-fresh").textContent = j.data_fresh ? "yes" : "stale/none";
     $("sys-age").textContent = j.signal_age_sec != null ? fmt(j.signal_age_sec, 0) + "s" : "—";

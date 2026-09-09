@@ -104,3 +104,21 @@ Set `HELIX_AUTO_MARKET=1` (default). Brain cycles scan FX + gold + oil + news an
 | `HELIX_TRADE_STYLE` | `scalp` | M5 execution + M15 bias, tighter RR/SL |
 
 Both styles work on **demo and live**, with Auto Market + max 3 trades/day. Set on Railway; EA `InpTradeStyle` should match (0=swing, 1=scalp).
+
+
+## Cloud execution (MetaAPI) — no home PC
+
+HELIX on Railway can send orders through [MetaAPI](https://metaapi.cloud) cloud MT5 linked to Exness.
+
+1. Sign up at https://app.metaapi.cloud → create API token  
+2. Add your Exness MT5 demo account → copy **Account ID**  
+3. Railway env:
+   - `HELIX_MODE=LIVE` (demo account still — broker demo)
+   - `HELIX_EXECUTOR=metaapi` (or `auto` when token+account set)
+   - `METAAPI_TOKEN=...`
+   - `METAAPI_ACCOUNT_ID=...`
+   - `METAAPI_REGION=new-york` (or london/singapore/tokyo)
+   - `METAAPI_SYMBOL_SUFFIX=m` if symbols are `EURUSDm` etc.
+4. Keep `HELIX_MAX_TRADES_PER_DAY=3` and Auto Market on.
+
+Desktop `HELIX.mq5` remains supported via `HELIX_EXECUTOR=mt5`.

@@ -240,15 +240,13 @@ def run_helix_cycle(
         plan.rationale = "SAFE mode — " + plan.rationale
 
     adapter = get_adapter(mode_e)
-    # LIVE mt5 adapter asserts; PAPER/SAFE use paper
-    if mode_e is TradingMode.LIVE and plan.action in ("buy", "sell", "close", "hold"):
+    # LIVE → mt5 file bridge or MetaAPI cloud; PAPER/SAFE → paper; BACKTEST → backtest
+    if mode_e is TradingMode.LIVE:
         exec_result = adapter.submit(plan)
     elif mode_e is TradingMode.BACKTEST:
         exec_result = adapter.submit(plan)
     else:
-        # paper / safe
         from helix_v1.execution import PaperAdapter
-
         exec_result = PaperAdapter(write_signal_file=True).submit(plan)
 
     explanation = build_explanation(

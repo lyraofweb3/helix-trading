@@ -61,6 +61,19 @@ class ModeGuard:
 
     def choose_adapter_name(self) -> str:
         if self.mode is TradingMode.LIVE:
+            # HELIX_EXECUTOR: metaapi | mt5 | auto (metaapi if creds else mt5 file bridge)
+            exe = (os.environ.get("HELIX_EXECUTOR") or "auto").strip().lower()
+            if exe == "metaapi":
+                return "metaapi"
+            if exe == "mt5":
+                return "mt5"
+            # auto
+            try:
+                from helix_v1.providers.metaapi import metaapi_configured
+                if metaapi_configured():
+                    return "metaapi"
+            except Exception:
+                pass
             return "mt5"
         if self.mode is TradingMode.BACKTEST:
             return "backtest"

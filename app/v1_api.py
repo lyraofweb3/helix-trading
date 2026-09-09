@@ -40,6 +40,8 @@ def v1_status() -> dict[str, Any]:
         "kill_switch": is_kill_switch_on(),
         "health": h,
         "intelligence": "HELIX quant + optional LLM (xAI Grok → OpenAI → Anthropic)",
+        "executor": __import__("os").environ.get("HELIX_EXECUTOR", "auto"),
+        "metaapi_configured": __import__("helix_v1.providers.metaapi", fromlist=["metaapi_configured"]).metaapi_configured(),
     }
 
 
@@ -234,3 +236,21 @@ def v1_champion_cycle(
 def v1_get_trade_style() -> dict[str, Any]:
     from helix_v1.trade_style import current_trade_style
     return {"trade_style": current_trade_style().value, "options": ["swing", "scalp"]}
+
+
+@router.get("/metaapi/status")
+def v1_metaapi_status() -> dict[str, Any]:
+    """Cloud MT5 via MetaAPI — PC-free execution status (no secrets returned)."""
+    from helix_v1.providers.metaapi import account_information, metaapi_configured
+    import os
+    cfg = metaapi_configured()
+    out: dict[str, Any] = {
+        "configured": cfg,
+        "executor": os.environ.get("HELIX_EXECUTOR", "auto"),
+        "region": os.environ.get("METAAPI_REGION", "new-york"),
+        "symbol_suffix": os.environ.get("METAAPI_SYMBOL_SUFFIX", ""),
+        "account_id_set": bool(os.environ.get("METAAPI_ACCOUNT_ID", "").strip()),
+    }
+    if cfg and os.environ.get("HELIX_METAAPI_PROBE", "").strip() in {"1", "true", "yes"}:
+        out["probe"] = account_information()
+    return out

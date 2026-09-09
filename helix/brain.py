@@ -13,6 +13,7 @@ import httpx
 from helix.anthropic_client import AnthropicClient
 from helix.config import (
     DEFAULT_SYMBOL,
+    KNOWLEDGE_VERSION,
     JOURNAL_PATH,
     LATEST_SIGNAL_PATH,
     RISK_PERCENT,
@@ -42,9 +43,11 @@ _PROVIDER_FAIL_EXC = (httpx.HTTPStatusError, httpx.RequestError, RuntimeError, V
 def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
     """
     Market snapshot with live H1 prices/indicators when the free feed works.
-    On feed failure, price fields stay null + note so the model prefers hold.
+    Attaches structure (PDH/PDL, OF, FVG, premium/discount) and a playbook excerpt
+    for LLM context. On feed failure, price fields stay null + note → prefer hold.
     """
     prices = fetch_snapshot(symbol)
+    excerpt = load_playbook_excerpt()
     return {
         "symbol": symbol,
         "timeframe": "H1",
@@ -60,6 +63,9 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
         "note": prices.get("note")
         or "Live prices not connected yet — treat as incomplete; prefer hold.",
         "price_provider": prices.get("price_provider"),
+        "structure": prices.get("structure"),
+        "playbook_excerpt": excerpt or None,
+        "knowledge_version": knowledge_version_from_rules() or KNOWLEDGE_VERSION,
         "risk_context": {
             "risk_percent": RISK_PERCENT,
             "max_daily_loss_pct": MAX_DAILY_LOSS_PCT,
@@ -69,9 +75,6 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
             "sl_atr_mult": SL_ATR_MULT,
         },
         "as_of": datetime.now(timezone.utc).isoformat(),
-        "playbook_excerpt": load_playbook_excerpt(8000),
-        "knowledge_version": knowledge_version_from_rules(),
-        "structure": prices.get("structure"),
     }
 
 
@@ -158,7 +161,13 @@ def run_once(
             "provider": provider,
             "model": used_client.model,
             "snapshot_note": snapshot.get("note"),
-            "knowledge_version": snapshot.get("knowledge_version") or knowledge_version_from_rules(),
+            "knowledge_version": (
+                snapshot.get("knowledge_version")
+                or knowledge_version_from_rules()
+                or KNOWLEDGE_VERSION
+            ),
+            "has_structure": bool(snapshot.get("structure")),
+            "has_playbook_excerpt": bool(snapshot.get("playbook_excerpt")),
             "structure_summary": (snapshot.get("structure") or {}).get("summary")
             if isinstance(snapshot.get("structure"), dict)
             else None,

@@ -50,6 +50,16 @@ def _summarize_rules(data: dict[str, Any]) -> str:
     kv = data.get("knowledge_version")
     if kv:
         lines.append(f"version={kv}")
+    defaults = data.get("defaults") or {}
+    if defaults:
+        lines.append(
+            "defaults: "
+            f"max_risk_pct={defaults.get('max_risk_pct_per_trade', '?')}, "
+            f"daily_loss_cap={defaults.get('daily_loss_cap_pct', '?')}, "
+            f"bias_tf={defaults.get('bias_timeframes')}, "
+            f"timing={defaults.get('timing_timeframe')}, "
+            f"news_blackout_m={defaults.get('news_blackout_minutes')}"
+        )
     risk = data.get("risk") or {}
     if risk:
         lines.append(
@@ -61,7 +71,10 @@ def _summarize_rules(data: dict[str, Any]) -> str:
         )
     tf = data.get("timeframes") or {}
     if tf:
-        lines.append(f"tf: bias={tf.get('bias')} timing={tf.get('timing')} never_fight_htf={tf.get('never_fight_clear_htf')}")
+        lines.append(
+            f"tf: bias={tf.get('bias')} timing={tf.get('timing')} "
+            f"never_fight_htf={tf.get('never_fight_clear_htf')}"
+        )
     of = data.get("order_flow") or {}
     if of:
         lines.append(f"OF: bullish={of.get('bullish')}; bearish={of.get('bearish')}")
@@ -76,9 +89,25 @@ def _summarize_rules(data: dict[str, Any]) -> str:
         lines.append(f"news: {news}")
     gates = data.get("confluence_gates") or {}
     if gates:
-        req = gates.get("buy_sell_requires") or []
+        req = gates.get("buy_sell_requires") or gates.get("score_items") or []
         lines.append("gates: " + ", ".join(str(x) for x in req))
+        if "buy_sell_requires_min_score" in gates:
+            lines.append(
+                f"min_score={gates.get('buy_sell_requires_min_score')} "
+                f"prefer_min={gates.get('prefer_min_score')}"
+            )
         lines.append(f"else: {gates.get('else_action', 'hold')}")
+    macro = data.get("macro") or {}
+    if macro:
+        lines.append(f"macro: {macro}")
+    rules = data.get("rules") or []
+    if isinstance(rules, list) and rules:
+        bits = []
+        for r in rules[:40]:
+            if isinstance(r, dict) and r.get("id"):
+                bits.append(f"{r.get('id')}:{r.get('prefer_action')}")
+        if bits:
+            lines.append("rules: " + "; ".join(bits))
     return "\n".join(lines)
 
 

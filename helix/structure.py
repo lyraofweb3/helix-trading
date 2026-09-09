@@ -192,6 +192,12 @@ def compute_structure(
     pd = prev_day_hl(daily_highs, daily_lows, daily_closes)
     fvg = fvg_hint(highs, lows)
 
+    summary = (
+        f"OF={of}; zone={zone}; "
+        f"PDH={_r(pd.get('pdh'), symbol)}; PDL={_r(pd.get('pdl'), symbol)}; "
+        f"reaction={pd.get('reaction_hint')}; "
+        f"FVG={fvg.get('type') if fvg.get('present') else 'none'}"
+    )
     return {
         "swing_highs": [_r(p, symbol) for _, p in sh[-5:]],
         "swing_lows": [_r(p, symbol) for _, p in sl[-5:]],
@@ -206,4 +212,5 @@ def compute_structure(
         "fvg_hint": fvg,
         "swing_n": swing_n,
         "range_lookback": range_lookback,
+        "summary": summary,
     }

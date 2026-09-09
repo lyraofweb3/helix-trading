@@ -48,8 +48,8 @@
 //| GMT+2/3). Defaults for stocks approximate US RTH on GMT+2.       |
 //+------------------------------------------------------------------+
 #property copyright "Personal use"
-#property version   "1.31"
-#property description "HELIX 1.31 — AI mind + idea channels + trail/BE/partial. Hard risk. DEMO FIRST."
+#property version   "1.32"
+#property description "HELIX 1.32 — AI mind + idea channels + trail/BE/partial. Hard risk. DEMO FIRST."
 
 #include <Trade/Trade.mqh>
 
@@ -74,7 +74,7 @@ input group "Risk — do not raise these on a small account"
 input double InpRiskPercent        = 0.5;    // Risk per trade (% of equity)
 input double InpMaxDailyLossPct    = 2.0;    // Stop trading if day is down this %
 input int    InpMaxPositions       = 1;      // Max open positions for this EA
-input int    InpMaxTradesPerDay    = 4;      // Cap on new entries per day
+input int    InpMaxTradesPerDay    = 3;      // Cap on new entries per day (demo/live hard cap)
 input double InpMinRR              = 1.5;    // Take-profit = SL distance * this
 
 //--- AI brain signals
@@ -92,7 +92,7 @@ input bool   InpCloseOnStrongHold = true;   // Close if action=hold with high co
 input double InpHoldCloseConfidence = 0.70; // Min conf for hold-exit
 input bool   InpReverseAfterClose = false;  // After opposite close, also open new side (default off — exit only)
 
-input group "Pro trade management (HELIX 1.31)"
+input group "Pro trade management (HELIX 1.32)"
 input bool   InpUseTrailing        = true;   // Trail stop after profit threshold
 input double InpTrailATRMult       = 1.0;    // Trail distance = ATR * this
 input double InpTrailStartATRMult  = 1.0;    // Start trailing after +ATR*this profit
@@ -107,7 +107,8 @@ input double InpPartialPercent     = 50;     // Close this % of volume (1–99)
 input group "Forex filters"
 input int    InpFxMaxSpreadPoints  = 25;     // Max spread in points (EURUSD 5-digit: 10-20 typical)
 input bool   InpFxOnlyLiquidHours  = true;   // Trade London + NY only (server time)
-input int    InpFxSessionStartHour = 7;      // ~London open on many Exness servers
+input bool   InpUseSessionFilter  = false;  // false = trade anytime market is ready
+input int    InpFxSessionStartHour = 7;      // used only if InpUseSessionFilter=true
 input int    InpFxSessionEndHour   = 20;     // After NY afternoon
 input bool   InpFxSkipFridayLate   = true;   // Skip late Friday
 input int    InpFxFridayCutoffHour = 18;     // Friday cutoff hour (server time)
@@ -917,7 +918,7 @@ bool CloseOurPositions(const string reason)
 //+------------------------------------------------------------------+
 
 //+------------------------------------------------------------------+
-//| HELIX 1.31 — trail / break-even / one-shot partial (additive)     |
+//| HELIX 1.32 — trail / break-even / one-shot partial (additive)     |
 //+------------------------------------------------------------------+
 void ManageProExits()
   {
@@ -1099,11 +1100,15 @@ bool SpreadOk()
 
 //+------------------------------------------------------------------+
 bool SessionOk()
-  {
+{
    MqlDateTime dt;
    TimeToStruct(TimeCurrent(), dt);   // broker server time
 
+   // Always flat weekends (markets closed / thin)
    if(dt.day_of_week==0 || dt.day_of_week==6) return false;
+
+   // Default: no clock window — trade anytime brain says ready (max 3/day still applies)
+   if(!InpUseSessionFilter) return true;
 
    if(g_is_stock)
      {

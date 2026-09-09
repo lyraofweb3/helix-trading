@@ -86,3 +86,11 @@ Set `HELIX_AUTO_MARKET=1` (default). Brain cycles scan FX + gold + oil + news an
 
 - Override single symbol: `HELIX_AUTO_MARKET=0` or `HELIX_FORCE_SYMBOL=EURUSD`
 - Attach HELIX EA on charts for symbols you allow (EURUSDm, XAUUSDm, USOILm, …). EA only executes when `latest.json` symbol matches the chart.
+
+
+## Anytime readiness (demo → live)
+
+- `HELIX_MAX_TRADES_PER_DAY=3` — hard daily cap (brain + risk + EA).
+- `HELIX_AUTO_MARKET=1` + `HELIX_POLL_SECONDS=300` — scan every 5 minutes; **only enter when gates clear**.
+- No fixed trade clock: EA `InpUseSessionFilter=false` (weekends still blocked).
+- Keep `HELIX_V1_LLM=0` so poll does not burn xAI credits; Auto Market uses quant + news.

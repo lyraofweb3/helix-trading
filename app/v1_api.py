@@ -190,3 +190,28 @@ def v1_native_ideas(symbol: str = Query("EURUSD")) -> dict[str, Any]:
 
     snap = build_market_snapshot(symbol.upper())
     return {"ok": True, "symbol": symbol.upper(), **ideas_payload(snap)}
+
+
+@router.get("/champion/scan")
+def v1_champion_scan(symbols: str | None = Query(None)) -> dict[str, Any]:
+    from helix_v1.champion import champion_scan
+    from helix_v1.scanner import DEFAULT_UNIVERSE
+
+    syms = [s.strip().upper() for s in symbols.split(",")] if symbols else DEFAULT_UNIVERSE
+    rows = champion_scan(syms)
+    return {"ok": True, "count": len(rows), "ranked": rows, "top": rows[0] if rows else None}
+
+
+@router.post("/champion/cycle")
+def v1_champion_cycle(
+    symbols: str | None = Query(None),
+    x_helix_token: str | None = Header(default=None, alias="X-HELIX-Token"),
+) -> dict[str, Any]:
+    """Scan universe and run HELIX only on the #1 setup if it clears gates."""
+    _check_token(x_helix_token)
+    from helix_v1.champion import run_champion_cycle
+    from helix_v1.scanner import DEFAULT_UNIVERSE
+
+    syms = [s.strip().upper() for s in symbols.split(",")] if symbols else DEFAULT_UNIVERSE
+    out = run_champion_cycle(symbols=syms)
+    return {"ok": True, **out}

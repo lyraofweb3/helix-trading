@@ -29,6 +29,16 @@ def scan_symbol(symbol: str, snapshot: dict[str, Any] | None = None) -> dict[str
     regime = detect_regime(snapshot)
     signals = run_all(snapshot, structure, regime)
     fusion = fuse_signals(signals, snapshot, structure, regime)
+    idea_odds = 0.0
+    idea_channel = ""
+    try:
+        from helix_v1.idea_engine import best_idea
+        top = best_idea(snapshot)
+        if top:
+            idea_odds = float(top.odds)
+            idea_channel = top.channel
+    except Exception:  # noqa: BLE001
+        pass
     return {
         "symbol": symbol,
         "regime": regime.to_dict(),
@@ -37,6 +47,8 @@ def scan_symbol(symbol: str, snapshot: dict[str, Any] | None = None) -> dict[str
         "score": fusion.helix_confidence_score,
         "confluence": fusion.confluence_count,
         "rationale": fusion.rationale,
+        "idea_odds": idea_odds,
+        "idea_channel": idea_channel,
     }
 
 

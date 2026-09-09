@@ -195,3 +195,37 @@ def write_suggestions(
     except Exception as exc:  # noqa: BLE001
         logger.warning("write_suggestions failed: %s", type(exc).__name__)
         return None
+
+
+
+def latest_suggestions(db_path: Any = None) -> dict[str, Any] | None:
+    """Return newest learning suggestions JSON if any (soft weights only)."""
+    if not ensure_learning_schema(db_path):
+        return None
+    try:
+        db = _db(db_path)
+        with db.conn() as conn:
+            row = conn.execute(
+                "SELECT suggestions_json FROM learning_suggestions ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        if not row:
+            return None
+        raw = row[0] if not hasattr(row, "keys") else row["suggestions_json"]
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        return data if isinstance(data, dict) else {"raw": data}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("latest_suggestions failed: %s", type(exc).__name__)
+        return None
+
+
+def soft_weight_map(db_path: Any = None) -> dict[str, float]:
+    sug = latest_suggestions(db_path) or {}
+    w = sug.get("weights") or {}
+    out: dict[str, float] = {}
+    if isinstance(w, dict):
+        for k, v in w.items():
+            try:
+                out[str(k)] = float(v)
+            except (TypeError, ValueError):
+                continue
+    return out

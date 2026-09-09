@@ -476,7 +476,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <p id="rationale" class="meta"></p>
       <div class="row">
         <button id="btn-refresh" class="secondary" type="button">Refresh</button>
-        <button id="btn-run" type="button">Run once</button>
+        <button id="btn-champion" type="button">Champion</button>
+      <button id="btn-run" type="button">Run once</button>
         <button id="btn-scan" class="secondary" type="button">Scan</button>
       </div>
       <input id="token" type="password" placeholder="X-HELIX-Token (if set)" autocomplete="off"/>
@@ -776,6 +777,27 @@ async function runScan() {
   }
 }
 
+
+async function runChampion() {
+  setErr("");
+  const btn = $("btn-champion");
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch("/api/v1/champion/cycle", { method: "POST", headers: tokenHeaders ? tokenHeaders() : headers() });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setErr(j.detail || ("HTTP " + r.status)); return; }
+    const plan = (j.plan) || ((j.result||{}).plan) || {};
+    if (typeof paintSignal === "function") paintSignal(plan);
+    const top = j.picked || j.top || (j.ranked||[])[0];
+    if (top && $("scan-list")) {
+      $("scan-list").innerHTML = `<div class="meta"><strong>Champion:</strong> ${top.symbol} score ${Number(top.champion_score||0).toFixed(2)} · ${top.state||""} · ${top.action||""}</div>` + ($("scan-list").innerHTML||"");
+    }
+    if (typeof loadJournal === "function") await loadJournal();
+    if (typeof loadPerformance === "function") await loadPerformance();
+  } catch (e) { setErr("Champion cycle failed"); }
+  finally { if (btn) btn.disabled = false; }
+}
+
 async function runOnce() {
   setErr("");
   const btn = $("btn-run");
@@ -823,6 +845,7 @@ async function kill(active) {
 
 function refreshAll() {
   if ($("btn-holly")) $("btn-holly").onclick = () => loadHolly("EURUSD");
+if ($("btn-champion")) $("btn-champion").onclick = runChampion;
 loadStatus(); loadSignal(); loadJournal(); loadPerformance(); loadExplain(); loadMtf('EURUSD'); loadHolly('EURUSD');
 }
 

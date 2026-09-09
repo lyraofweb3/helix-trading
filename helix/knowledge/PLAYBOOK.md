@@ -294,3 +294,12 @@ Always state in rationale (short):
 - Risk note if relevant  
 
 If any critical field is null/missing in snapshot → default **hold**.
+
+---
+
+## 16. Gold & oil (commodities)
+
+- **XAUUSD (gold):** Treat as CFD/metal. Drivers: real yields, DXY, risk-off demand, geopolitics. Wider stops via ATR; never force FX pip math.
+- **USOIL (WTI) / UKOIL (Brent):** Energy CFDs. Drivers: inventories, OPEC/geopolitics, USD. Trade only the symbol in the snapshot (do not swap WTI↔Brent mid-thesis).
+- Exness symbols often use `m` suffix (`XAUUSDm`, `USOILm`) — brain outputs canonical names; EA matches suffixes.
+- Same confluence ≥3 gate and risk caps as FX. Prefer hold when commodity news is one-sided and price has already spiked (chase risk).

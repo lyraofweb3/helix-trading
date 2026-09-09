@@ -135,6 +135,9 @@ SYMBOLS = [
     "USDCAD",
     "USDCHF",
     "NZDUSD",
+    "XAUUSD",  # gold (Exness: XAUUSDm)
+    "USOIL",   # WTI (Exness: often USOILm)
+    "UKOIL",   # Brent (Exness: often UKOILm)
 ]
 
 DEFAULT_SYMBOL = "EURUSD"
@@ -149,7 +152,7 @@ SL_ATR_MULT = 1.5           # InpSL_ATR_Mult
 FX_MAX_SPREAD_POINTS = 25   # InpFxMaxSpreadPoints
 
 # --- knowledge pack ---
-KNOWLEDGE_VERSION = "2026-09-09-v2-deep"
+KNOWLEDGE_VERSION = "2026-09-09-v3-commodities"
 
 # --- loop ---
 # Prefer HELIX_POLL_SECONDS (web/Railway); fall back to HELIX_POLL_INTERVAL; default 300 for web
@@ -180,6 +183,10 @@ NEWS_FEEDS = [
     {
         "name": "Federal Reserve",
         "url": "https://www.federalreserve.gov/feeds/press_all.xml",
+    },
+    {
+        "name": "OilPrice",
+        "url": "https://oilprice.com/rss/main",
     },
 ]
 

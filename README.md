@@ -106,3 +106,7 @@ Optional: `HELIX_XAI_MODEL`, `HELIX_OPENAI_MODEL`, `HELIX_ANTHROPIC_MODEL`.
 ## Knowledge pack
 
 HELIX ships `helix/knowledge/` (PLAYBOOK + rules). Version `2026-09-09-v2-deep`: risk, MTF, liquidity/CRT/DOL, sessions, macro FX, confluence score ≥3. Auto brain may be paused via `HELIX_POLL_SECONDS=0`.
+
+## Symbols
+
+FX majors plus **XAUUSD** (gold), **USOIL** (WTI), **UKOIL** (Brent). Exness charts often use an `m` suffix (`XAUUSDm`, `USOILm`).

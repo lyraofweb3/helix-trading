@@ -212,7 +212,7 @@
       "notes": "prefer_action is buy if bias+flow long, sell if bias+flow short. Log DOL and invalidation."
     }
   ],
-  "knowledge_version": "2026-09-09-v2-deep",
+  "knowledge_version": "2026-09-09-v3-commodities",
   "confluence_gates": {
     "buy_sell_requires_min_score": 3,
     "prefer_min_score": 4,
@@ -242,5 +242,22 @@
     "london_kill": "07:00-10:00",
     "london_ny_overlap": "12:00-16:00",
     "prefer_for_majors": "london_ny_overlap"
+  },
+  "symbols": {
+    "fx_majors": [
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "AUDUSD",
+      "USDCAD",
+      "USDCHF",
+      "NZDUSD"
+    ],
+    "commodities": [
+      "XAUUSD",
+      "USOIL",
+      "UKOIL"
+    ],
+    "exness_suffix_note": "charts may append m"
   }
 }

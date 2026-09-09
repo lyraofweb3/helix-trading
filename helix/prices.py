@@ -1,4 +1,4 @@
-"""Free live forex OHLC via Yahoo Finance chart API. Fail soft — no paid keys."""
+"""Free live FX + gold/oil OHLC via Yahoo Finance chart API. Fail soft — no paid keys."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # HELIX majors → Yahoo Finance FX tickers (verified 2026-09).
 # USDJPY=X and JPY=X both resolve; prefer explicit pair forms where available.
 YAHOO_SYMBOL_MAP: dict[str, str] = {
+    # FX majors
     "EURUSD": "EURUSD=X",
     "GBPUSD": "GBPUSD=X",
     "USDJPY": "USDJPY=X",
@@ -21,6 +22,15 @@ YAHOO_SYMBOL_MAP: dict[str, str] = {
     "USDCAD": "USDCAD=X",
     "USDCHF": "USDCHF=X",
     "NZDUSD": "NZDUSD=X",
+    # Metals / energy (Yahoo futures; Exness charts often XAUUSDm / USOILm)
+    "XAUUSD": "GC=F",
+    "GOLD": "GC=F",
+    "USOIL": "CL=F",
+    "WTI": "CL=F",
+    "XTIUSD": "CL=F",
+    "UKOIL": "BZ=F",
+    "BRENT": "BZ=F",
+    "XBRUSD": "BZ=F",
 }
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
@@ -36,32 +46,61 @@ _STUB_SPREAD_POINTS_DEFAULT = 12  # ~1.2 pip on 5-digit majors
 _STUB_SPREAD_POINTS_JPY = 15
 
 
-def yahoo_ticker(symbol: str) -> str:
-    """Map HELIX symbol (EURUSD) to Yahoo ticker (EURUSD=X)."""
+def normalize_symbol(symbol: str) -> str:
+    """Canonical HELIX symbol: strip broker suffixes (m, .m, #) and aliases."""
     sym = symbol.strip().upper().replace("/", "").replace("=", "")
-    if sym.endswith("X") and len(sym) > 6:
-        # already a yahoo-ish form without =
-        pass
+    if sym.startswith("#"):
+        sym = sym[1:]
+    # Exness-style trailing m / .m / _i
+    if sym.endswith(".M"):
+        sym = sym[:-2]
+    if sym.endswith("_I"):
+        sym = sym[:-2]
+    # Exness often appends m (XAUUSDm, USOILm) — strip if stem is known
+    if sym.endswith("M") and sym[:-1] in YAHOO_SYMBOL_MAP:
+        sym = sym[:-1]
+    # aliases
+    aliases = {
+        "GOLD": "XAUUSD",
+        "WTI": "USOIL",
+        "XTIUSD": "USOIL",
+        "BRENT": "UKOIL",
+        "XBRUSD": "UKOIL",
+    }
+    return aliases.get(sym, sym)
+
+
+def yahoo_ticker(symbol: str) -> str:
+    """Map HELIX symbol (EURUSD / XAUUSD / USOIL) to Yahoo ticker."""
+    sym = normalize_symbol(symbol)
     if sym in YAHOO_SYMBOL_MAP:
         return YAHOO_SYMBOL_MAP[sym]
     # Heuristic: XXXYYY → XXXYYY=X (works for most Yahoo FX pairs)
     if len(sym) == 6 and sym.isalpha():
         return f"{sym}=X"
-    raise ValueError(f"unsupported forex symbol: {symbol}")
+    raise ValueError(f"unsupported symbol: {symbol}")
 
 
 def point_size(symbol: str) -> float:
-    """MT5-style Point: 0.001 for JPY quotes, 0.00001 for 5-digit majors."""
-    sym = symbol.strip().upper().replace("/", "").replace("=X", "").replace("=", "")
+    """MT5-style Point estimate for ATR→points conversion."""
+    sym = normalize_symbol(symbol)
     if "JPY" in sym:
         return 0.001
+    if sym in {"XAUUSD", "GOLD"}:
+        return 0.001  # Exness XAUUSDm often 3 digits
+    if sym in {"USOIL", "UKOIL", "WTI", "XTIUSD", "BRENT", "XBRUSD"}:
+        return 0.01
     return 0.00001
 
 
 def stub_spread_points(symbol: str) -> int:
-    sym = symbol.strip().upper()
+    sym = normalize_symbol(symbol)
     if "JPY" in sym:
         return _STUB_SPREAD_POINTS_JPY
+    if sym in {"XAUUSD", "GOLD"}:
+        return 80  # metals wider
+    if sym in {"USOIL", "UKOIL", "WTI", "XTIUSD", "BRENT", "XBRUSD"}:
+        return 40
     return _STUB_SPREAD_POINTS_DEFAULT
 
 

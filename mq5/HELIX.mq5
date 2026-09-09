@@ -48,8 +48,8 @@
 //| GMT+2/3). Defaults for stocks approximate US RTH on GMT+2.       |
 //+------------------------------------------------------------------+
 #property copyright "Personal use"
-#property version   "1.30"
-#property description "HELIX — AI entry+exit mind + EMA rules. Hard risk caps. Always SL. DEMO FIRST."
+#property version   "1.31"
+#property description "HELIX 1.31 — AI mind + idea channels + trail/BE/partial. Hard risk. DEMO FIRST."
 
 #include <Trade/Trade.mqh>
 
@@ -91,6 +91,17 @@ input bool   InpCloseOnActionClose = true;  // Honor action=close
 input bool   InpCloseOnStrongHold = true;   // Close if action=hold with high conf
 input double InpHoldCloseConfidence = 0.70; // Min conf for hold-exit
 input bool   InpReverseAfterClose = false;  // After opposite close, also open new side (default off — exit only)
+
+input group "Pro trade management (HELIX 1.31)"
+input bool   InpUseTrailing        = true;   // Trail stop after profit threshold
+input double InpTrailATRMult       = 1.0;    // Trail distance = ATR * this
+input double InpTrailStartATRMult  = 1.0;    // Start trailing after +ATR*this profit
+input bool   InpUseBreakEven       = true;   // Move SL to break-even after profit
+input double InpBE_ATRMult         = 1.0;    // Trigger BE after +ATR*this
+input double InpBE_OffsetPoints    = 20;     // BE SL offset beyond entry (points)
+input bool   InpUsePartialClose    = true;   // Take partial profit once
+input double InpPartialATRMult     = 1.2;    // Partial when profit >= ATR*this
+input double InpPartialPercent     = 50;     // Close this % of volume (1–99)
 
 //--- forex filters (used when mode = Forex or Auto→forex)
 input group "Forex filters"
@@ -612,7 +623,10 @@ void OnTick()
 
    // AI exit mind — every tick while we hold positions (not gated to new bar)
    if(CountOurPositions() > 0)
+     {
       ManageAiExits();
+      ManageProExits();
+     }
 
    if(DailyLossHit()) return;
 
@@ -901,6 +915,119 @@ bool CloseOurPositions(const string reason)
   }
 
 //+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| HELIX 1.31 — trail / break-even / one-shot partial (additive)     |
+//+------------------------------------------------------------------+
+void ManageProExits()
+  {
+   if(!InpUseTrailing && !InpUseBreakEven && !InpUsePartialClose)
+      return;
+   if(CountOurPositions() <= 0)
+      return;
+
+   double atr[];
+   ArraySetAsSeries(atr, true);
+   if(h_atr == INVALID_HANDLE) return;
+   if(CopyBuffer(h_atr, 0, 0, 3, atr) < 3) return;
+   double atr_price = atr[0];
+   if(atr_price <= 0) return;
+
+   double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   if(point <= 0) return;
+
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+      if(!PositionSelectByTicket(ticket)) continue;
+      if(PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+      if((ulong)PositionGetInteger(POSITION_MAGIC) != InpMagic) continue;
+
+      long type = PositionGetInteger(POSITION_TYPE);
+      double volume = PositionGetDouble(POSITION_VOLUME);
+      double entry = PositionGetDouble(POSITION_PRICE_OPEN);
+      double sl = PositionGetDouble(POSITION_SL);
+      double tp = PositionGetDouble(POSITION_TP);
+      double price = (type == POSITION_TYPE_BUY)
+                     ? SymbolInfoDouble(_Symbol, SYMBOL_BID)
+                     : SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double profit_dist = (type == POSITION_TYPE_BUY) ? (price - entry) : (entry - price);
+
+      // Comment tag encodes partial-done: look for "|P1"
+      string cmt = PositionGetString(POSITION_COMMENT);
+      bool partial_done = (StringFind(cmt, "|P1") >= 0);
+
+      // Partial close once
+      if(InpUsePartialClose && !partial_done && profit_dist >= atr_price * InpPartialATRMult)
+        {
+         double pct = MathMax(1.0, MathMin(99.0, InpPartialPercent));
+         double close_vol = NormalizeDouble(volume * (pct / 100.0), 2);
+         double vmin = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+         double vstep = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+         if(vstep <= 0) vstep = 0.01;
+         if(close_vol < vmin) close_vol = vmin;
+         // leave at least min volume
+         if(volume - close_vol < vmin - 1e-8)
+            close_vol = NormalizeDouble(volume - vmin, 2);
+         if(close_vol >= vmin && close_vol < volume)
+           {
+            if(trade.PositionClosePartial(ticket, close_vol))
+               Print("HELIX partial close ticket=", ticket, " vol=", close_vol);
+           }
+        }
+
+      // Break-even
+      if(InpUseBreakEven && profit_dist >= atr_price * InpBE_ATRMult)
+        {
+         double be = entry;
+         double off = InpBE_OffsetPoints * point;
+         if(type == POSITION_TYPE_BUY)
+           {
+            be = entry + off;
+            if(sl < be)
+              {
+               if(trade.PositionModify(ticket, be, tp))
+                  Print("HELIX BE buy ticket=", ticket, " sl=", be);
+              }
+           }
+         else
+           {
+            be = entry - off;
+            if(sl == 0 || sl > be)
+              {
+               if(trade.PositionModify(ticket, be, tp))
+                  Print("HELIX BE sell ticket=", ticket, " sl=", be);
+              }
+           }
+        }
+
+      // Trailing stop
+      if(InpUseTrailing && profit_dist >= atr_price * InpTrailStartATRMult)
+        {
+         double trail = atr_price * InpTrailATRMult;
+         if(type == POSITION_TYPE_BUY)
+           {
+            double new_sl = price - trail;
+            if(new_sl > sl && new_sl < price)
+              {
+               if(trade.PositionModify(ticket, new_sl, tp))
+                  Print("HELIX trail buy ticket=", ticket, " sl=", new_sl);
+              }
+           }
+         else
+           {
+            double new_sl = price + trail;
+            if((sl == 0 || new_sl < sl) && new_sl > price)
+              {
+               if(trade.PositionModify(ticket, new_sl, tp))
+                  Print("HELIX trail sell ticket=", ticket, " sl=", new_sl);
+              }
+           }
+        }
+     }
+  }
+
 void ManageAiExits()
   {
    if(!InpAiManageExits) return;

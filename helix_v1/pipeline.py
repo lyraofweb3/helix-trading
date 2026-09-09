@@ -85,7 +85,9 @@ def run_helix_cycle(
 
     # Trade Ideas Holly AI layer (fail soft; never replaces quant/MT5)
     try:
-        snapshot = {**snapshot, "holly": holly_vote_for_symbol(symbol)}
+        from helix_v1.idea_engine import ideas_payload
+        snapshot = {**snapshot, "idea_engine": ideas_payload(snapshot)}
+        snapshot = {**snapshot, "holly": holly_vote_for_symbol(symbol, snapshot=snapshot)}
     except Exception as exc:  # noqa: BLE001
         logger.warning("Holly layer skipped: %s", type(exc).__name__)
         snapshot = {**snapshot, "holly": {"available": False, "side": "flat", "confidence": 0.0}}
@@ -218,6 +220,7 @@ def run_helix_cycle(
                 "mt5_ea",
             ],
             "holly": snapshot.get("holly"),
+        "idea_engine": snapshot.get("idea_engine"),
             "execution_path": "HELIX → latest.json → MetaTrader HELIX.mq5 EA",
         },
     )
@@ -282,5 +285,6 @@ def run_helix_cycle(
         "strategies": [s.to_dict() for s in signals],
         "mtf": snapshot.get("mtf"),
         "holly": snapshot.get("holly"),
+        "idea_engine": snapshot.get("idea_engine"),
         "intelligence": "HELIX quant fusion — LLM layer optional (xAI Grok → OpenAI → Anthropic)",
     }

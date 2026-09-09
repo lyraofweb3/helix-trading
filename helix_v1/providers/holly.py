@@ -249,13 +249,30 @@ class ApiHollyProvider:
         return ingest_payload(body)  # also persists
 
 
-def collect_holly_ideas(symbol: str | None = None) -> list[HollyIdea]:
-    """Merge file + API providers for a symbol (or all)."""
+def collect_holly_ideas(symbol: str | None = None, snapshot: dict[str, Any] | None = None) -> list[HollyIdea]:
+    """Merge file + API + HELIX native idea engine for a symbol (or all)."""
     ideas: list[HollyIdea] = []
     ideas.extend(FileHollyProvider().fetch_ideas(symbol))
     api = ApiHollyProvider()
     if api.configured:
         ideas.extend(api.fetch_ideas(symbol))
+    # Native Holly-class engine fills gaps (HELIX-built features)
+    if snapshot is not None and not ideas:
+        from helix_v1.idea_engine import generate_ideas
+        for ti in generate_ideas(snapshot):
+            ideas.append(
+                HollyIdea(
+                    symbol=ti.symbol,
+                    side=ti.side,
+                    confidence=ti.confidence,
+                    thesis=ti.thesis,
+                    source="helix_idea_engine",
+                    ts=ti.ts,
+                    strategy=ti.channel,
+                    timeframe=str((snapshot or {}).get("timeframe") or "H1"),
+                    meta={"odds": ti.odds, "channel": ti.channel, **(ti.meta or {})},
+                )
+            )
     # Prefer highest confidence per symbol+side
     best: dict[str, HollyIdea] = {}
     for i in ideas:
@@ -265,10 +282,16 @@ def collect_holly_ideas(symbol: str | None = None) -> list[HollyIdea]:
     return list(best.values())
 
 
-def holly_vote_for_symbol(symbol: str) -> dict[str, Any]:
+def holly_vote_for_symbol(symbol: str, snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     """Summary vote HELIX can fuse — never executes alone."""
-    ideas = collect_holly_ideas(symbol)
+    ideas = collect_holly_ideas(symbol, snapshot=snapshot)
     if not ideas:
+        if snapshot is not None:
+            from helix_v1.idea_engine import to_holly_compatible
+            native = to_holly_compatible(snapshot)
+            native["provider_configured"] = ApiHollyProvider().configured
+            native["file_path"] = str(ideas_path())
+            return native
         return {
             "available": False,
             "side": "flat",

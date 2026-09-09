@@ -48,7 +48,7 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
     """
     prices = fetch_snapshot(symbol)
     excerpt = load_playbook_excerpt()
-    return {
+    snap = {
         "symbol": symbol,
         "timeframe": "H1",
         "bid": prices.get("bid"),
@@ -78,6 +78,14 @@ def build_market_snapshot(symbol: str = DEFAULT_SYMBOL) -> dict[str, Any]:
         },
         "as_of": datetime.now(timezone.utc).isoformat(),
     }
+    # HELIX-native idea engine (Holly-class features for xAI / fusion) — fail soft
+    try:
+        from helix_v1.idea_engine import ideas_payload, to_holly_compatible
+        snap["idea_engine"] = ideas_payload(snap)
+        snap["holly"] = to_holly_compatible(snap)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("idea_engine skipped: %s", type(exc).__name__)
+    return snap
 
 
 def _ensure_signals_dir() -> None:

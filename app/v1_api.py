@@ -180,3 +180,13 @@ def v1_holly_ingest(
         "ideas": [i.to_dict() for i in incoming],
         "note": "Holly ideas fuse into HELIX quant → risk → MT5 EA; Holly never trades alone.",
     }
+
+
+@router.get("/ideas/native")
+def v1_native_ideas(symbol: str = Query("EURUSD")) -> dict[str, Any]:
+    """HELIX-native Holly-class idea engine (not third-party source)."""
+    from helix.brain import build_market_snapshot
+    from helix_v1.idea_engine import ideas_payload
+
+    snap = build_market_snapshot(symbol.upper())
+    return {"ok": True, "symbol": symbol.upper(), **ideas_payload(snap)}

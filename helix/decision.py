@@ -51,6 +51,14 @@ CONFIDENCE GATES (SCORE)
 - Use playbook_excerpt + structure fields. Apply macro: do not fade impulsive DXY/USD if snapshot/news imply USD trend.
 
 Use structure fields and playbook_excerpt in the snapshot when present.
+
+IDEA ENGINE (HELIX-native, Holly-class features)
+- snapshot.idea_engine lists ranked trade ideas with channel + odds (idea-quality 0–100).
+- snapshot.holly may mirror the top idea (file/API/native). Treat as ONE confluence factor — never sole reason to buy/sell.
+- Prefer ideas whose side matches HTF/MTF bias and structure OF. Odds are ranking scores, not promises.
+- Channels: momentum, breakout, mean_reversion, volatility_expansion, structure_flow, session_liquidity.
+- If idea_engine.top exists and conflicts with HTF — hold or require confluence ≥4.
+
 Forex majors only unless the snapshot names another symbol.
 Output ONLY valid JSON matching the schema — no markdown fences, no prose outside JSON.
 Schema:

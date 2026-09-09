@@ -55,7 +55,7 @@ def v1_scan(symbols: str | None = Query(None, description="Comma-separated symbo
     syms = [s.strip().upper() for s in symbols.split(",")] if symbols else DEFAULT_UNIVERSE
     # Use lightweight synthetic scan from live snapshots when possible — may hit Yahoo
     rows = scan_market(syms)
-    return {"ok": True, "count": len(rows), "opportunities": rows}
+    return {"ok": True, "count": len(rows), "opportunities": rows, "results": rows}
 
 
 @router.get("/performance")

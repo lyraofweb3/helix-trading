@@ -499,6 +499,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="meta" id="reg-notes" style="margin-top:8px"></div>
     </section>
 
+    <section class="card span6" id="sec-mtf">
+      <div class="sec-title"><strong>Multi-Timeframe</strong><span class="pill" id="mtf-align-pill">—</span></div>
+      <div class="kv">
+        <div><div class="lbl">HTF bias</div><div class="val" id="mtf-htf">—</div></div>
+        <div><div class="lbl">Entry bias</div><div class="val" id="mtf-entry">—</div></div>
+        <div><div class="lbl">Alignment</div><div class="val" id="mtf-align">—</div></div>
+        <div><div class="lbl">Continuation</div><div class="val" id="mtf-cont">—</div></div>
+        <div><div class="lbl">Reversal</div><div class="val" id="mtf-rev">—</div></div>
+        <div><div class="lbl">Score</div><div class="val" id="mtf-score">—</div></div>
+      </div>
+      <div class="meta" id="mtf-notes" style="margin-top:8px"></div>
+    </section>
+
     <section class="card span6" id="sec-positions">
       <div class="sec-title"><strong>Positions</strong><span class="pill">signal bridge</span></div>
       <div class="meta" id="pos-box">No live broker positions in this app — MT5 EA reads signals/latest.json.</div>
@@ -513,6 +526,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <div><div class="lbl">Expectancy</div><div class="val" id="pf-exp">—</div></div>
         <div><div class="lbl">Max DD</div><div class="val" id="pf-dd">—</div></div>
         <div><div class="lbl">Net PnL</div><div class="val" id="pf-net">—</div></div>
+        <div><div class="lbl">Quality</div><div class="val" id="pf-quality">—</div></div>
       </div>
       <div class="meta" id="pf-note" style="margin-top:8px"></div>
     </section>
@@ -657,8 +671,14 @@ async function loadRegime(symbol) {
 
 async function loadPerformance() {
   try {
-    const r = await fetch("/api/v1/performance");
-    const j = await r.json();
+    let j;
+    try {
+      const r = await fetch("/api/v1/analytics");
+      j = await r.json();
+    } catch (e0) {
+      const r = await fetch("/api/v1/performance");
+      j = await r.json();
+    }
     const m = j.metrics || {};
     $("pf-n").textContent = m.n_trades != null ? m.n_trades : "—";
     $("pf-wr").textContent = m.win_rate != null ? (100 * m.win_rate).toFixed(1) + "%" : "—";
@@ -666,7 +686,26 @@ async function loadPerformance() {
     $("pf-exp").textContent = fmt(m.expectancy, 2);
     $("pf-dd").textContent = fmt(m.max_drawdown_pct, 2) + "%";
     $("pf-net").textContent = fmt(m.net_pnl, 2);
-    $("pf-note").textContent = m.notes || j.note || "";
+    if ($("pf-quality")) $("pf-quality").textContent = j.quality_score != null ? j.quality_score : "—";
+    $("pf-note").textContent = j.philosophy || m.notes || j.note || "";
+  } catch (e) {}
+}
+
+async function loadMtf(symbol) {
+  symbol = symbol || "EURUSD";
+  try {
+    const r = await fetch("/api/v1/mtf/" + encodeURIComponent(symbol));
+    const j = await r.json();
+    if (!r.ok) return;
+    const m = j.mtf || {};
+    $("mtf-htf").textContent = m.htf_bias || "—";
+    $("mtf-entry").textContent = m.entry_bias || "—";
+    $("mtf-align").textContent = m.alignment || "—";
+    $("mtf-align-pill").textContent = m.alignment || "—";
+    $("mtf-cont").textContent = fmt(m.continuation_probability, 2);
+    $("mtf-rev").textContent = fmt(m.reversal_probability, 2);
+    $("mtf-score").textContent = fmt(m.alignment_score, 2);
+    $("mtf-notes").textContent = (m.notes || []).join(" · ");
   } catch (e) {}
 }
 
@@ -687,7 +726,7 @@ async function runScan() {
     const r = await fetch("/api/v1/scan");
     const j = await r.json();
     if (!r.ok) { setErr(j.detail || "scan failed"); return; }
-    const rows = j.results || [];
+    const rows = j.opportunities || j.results || [];
     $("scan-count").textContent = String(rows.length);
     $("scan-list").innerHTML = rows.map(row => {
       const a = (row.action || "hold").toLowerCase();
@@ -699,7 +738,7 @@ async function runScan() {
         <div class="meta">${(row.rationale || "").slice(0,160)}</div>
       </div>`;
     }).join("") || `<div class="meta">No results</div>`;
-    if (rows[0] && rows[0].symbol) loadRegime(rows[0].symbol);
+    if (rows[0] && rows[0].symbol) { loadRegime(rows[0].symbol); loadMtf(rows[0].symbol); }
   } catch (e) {
     setErr("Scan failed");
     $("scan-list").textContent = "Scan failed";
@@ -752,7 +791,7 @@ async function kill(active) {
 }
 
 function refreshAll() {
-  loadStatus(); loadSignal(); loadJournal(); loadPerformance(); loadExplain();
+  loadStatus(); loadSignal(); loadJournal(); loadPerformance(); loadExplain(); loadMtf('EURUSD');
 }
 
 $("btn-refresh").onclick = refreshAll;

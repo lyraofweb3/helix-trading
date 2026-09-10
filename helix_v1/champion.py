@@ -228,7 +228,58 @@ def run_champion_cycle(
         }
 
     symbol = str(top["symbol"])
-    result = run_helix_cycle(symbol, mode=mode, headlines=headlines)
+    # Quant pipeline still runs for fusion/risk/journal context…
+    result = run_helix_cycle(symbol, mode=mode, headlines=headlines, use_llm=True)
+    # …then Grok is the full decision brain (xAI → OpenAI → Anthropic failover).
+    grok_meta: dict[str, Any] = {}
+    try:
+        from helix.config import llm_brain_enabled
+        from helix.brain import build_market_snapshot, _decide_with_failover
+        from helix.decision import TradeDecision
+        from helix.brain import write_signal
+
+        if llm_brain_enabled():
+            snap = build_market_snapshot(symbol)
+            if headlines:
+                snap = {**snap, "headlines": headlines}
+            decision, used_client, provider = _decide_with_failover(symbol, snap, headlines or [])
+            # Keep risk veto: if quant risk rejected entries, force hold unless Grok says close
+            risk = ((result.get("plan") or {}).get("meta") or {}).get("risk") or result.get("risk") or {}
+            if isinstance(risk, dict) and risk.get("approved") is False and decision.action in {"buy", "sell"}:
+                decision = TradeDecision(
+                    action="hold",
+                    symbol=decision.symbol,
+                    confidence=decision.confidence,
+                    rationale=f"grok:{decision.action} vetoed by risk ({risk.get('code') or risk.get('reasons')})",
+                    stop_hint=decision.stop_hint,
+                    take_hint=decision.take_hint,
+                )
+            path = write_signal(
+                decision,
+                meta={
+                    "auto_market": True,
+                    "champion": True,
+                    "picked": top,
+                    "provider": provider,
+                    "model": getattr(used_client, "model", None),
+                    "brain": "xai_grok_full",
+                    "quant_plan": result.get("plan"),
+                },
+            )
+            plan = {
+                "action": decision.action,
+                "symbol": decision.symbol,
+                "confidence": decision.confidence,
+                "rationale": decision.rationale,
+                "stop_hint": decision.stop_hint,
+                "take_hint": decision.take_hint,
+            }
+            grok_meta = {"provider": provider, "signal_path": str(path), "plan": plan}
+            result = {**result, "plan": plan, "grok": grok_meta}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Grok full-brain layer failed (%s); keeping quant plan", type(exc).__name__)
+        grok_meta = {"error": type(exc).__name__}
+
     return {
         "ts": datetime.now(timezone.utc).isoformat(),
         "champion": True,
@@ -239,4 +290,6 @@ def run_champion_cycle(
         "news_count": len(headlines),
         "result": result,
         "plan": result.get("plan"),
+        "brain": "xai_grok_full",
+        "grok": grok_meta,
     }

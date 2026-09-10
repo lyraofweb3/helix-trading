@@ -48,7 +48,7 @@ def run_helix_cycle(
     headlines: list[Any] | None = None,
     open_position: dict[str, Any] | None = None,
     open_positions: list[dict[str, Any]] | None = None,
-    use_llm: bool = False,
+    use_llm: bool = True,
     db: HelixDB | None = None,
 ) -> dict[str, Any]:
     """
@@ -294,5 +294,5 @@ def run_helix_cycle(
         "mtf": snapshot.get("mtf"),
         "holly": snapshot.get("holly"),
         "idea_engine": snapshot.get("idea_engine"),
-        "intelligence": "HELIX quant fusion — LLM layer optional (xAI Grok → OpenAI → Anthropic)",
+        "intelligence": "HELIX full brain: xAI Grok primary + quant fusion/risk",
     }

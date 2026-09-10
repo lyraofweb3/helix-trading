@@ -147,6 +147,11 @@ AUTO_MARKET = (os.environ.get("HELIX_AUTO_MARKET", "1").strip().lower() not in {
 # swing = H1 (default); scalp = M5/M15 additive path for demo + live
 TRADE_STYLE = (os.environ.get("HELIX_TRADE_STYLE") or "swing").strip().lower()
 
+def llm_brain_enabled() -> bool:
+    """Grok is the full HELIX brain (default ON). Set HELIX_V1_LLM=0 only to force quant-only."""
+    raw = os.environ.get("HELIX_V1_LLM", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
 # --- risk (mirrors HELIX.mq5) ---
 RISK_PERCENT = 0.5          # InpRiskPercent
 MAX_DAILY_LOSS_PCT = 2.0    # InpMaxDailyLossPct

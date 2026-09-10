@@ -39,7 +39,7 @@ def v1_status() -> dict[str, Any]:
         "max_trades_per_day": MAX_TRADES_PER_DAY,
         "kill_switch": is_kill_switch_on(),
         "health": h,
-        "intelligence": "HELIX full brain: xAI Grok (→ OpenAI → Anthropic failover) + quant risk",
+        "intelligence": "HELIX quant baseline; Grok optional fusion vote (HELIX_V1_LLM=1)",
         "executor": __import__("os").environ.get("HELIX_EXECUTOR", "auto"),
         "metaapi_configured": __import__("helix_v1.providers.metaapi", fromlist=["metaapi_configured"]).metaapi_configured(),
     }
@@ -132,7 +132,7 @@ def v1_cycle(
     symbol: str = Query(DEFAULT_SYMBOL),
     x_helix_token: str | None = Header(default=None, alias="X-HELIX-Token"),
 ) -> dict[str, Any]:
-    """Run one HELIX 1.0 quant cycle (Grok full brain by default (HELIX_V1_LLM=0 to disable))."""
+    """Run one HELIX 1.0 quant cycle (quant baseline; set HELIX_V1_LLM=1 for Grok fusion vote)."""
     _check_token(x_helix_token)
     from helix_v1.pipeline import run_helix_cycle
 

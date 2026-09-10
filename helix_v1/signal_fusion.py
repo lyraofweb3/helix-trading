@@ -33,6 +33,7 @@ CONFLUENCE_KEYS = (
     "mtf_aligned",
     "mtf_htf_bias",
     "holly_agree",  # Trade Ideas Holly AI agrees with side
+    "grok_agree",  # Grok fusion vote agrees with side
     "npfx_rsi_ok",  # NetProfitFX-style RSI timing
     "npfx_ema20_50",  # EMA 20/50 agreement (uses ema21/50 when present)
 )
@@ -154,6 +155,12 @@ def _confluence_flags(
             and str((snapshot.get("holly") or {}).get("side") or "") == side
             and float((snapshot.get("holly") or {}).get("confidence") or 0) >= 0.35
         ),
+        "grok_agree": bool(
+            (snapshot.get("grok") or {}).get("available")
+            and (snapshot.get("grok") or {}).get("vote") is not False
+            and str((snapshot.get("grok") or {}).get("side") or "") == side
+            and float((snapshot.get("grok") or {}).get("confidence") or 0) >= 0.35
+        ),
         "npfx_rsi_ok": bool(npfx_rsi),
         "npfx_ema20_50": bool(npfx_ema),
     }
@@ -235,6 +242,28 @@ def fuse_signals(
                 rationale="manage open position — no flip",
             )
 
+    # Grok fusion vote — blend lightly before preferred side is chosen
+    grok = snapshot.get("grok") or {}
+    if (
+        grok.get("available")
+        and grok.get("vote") is not False
+    ):
+        g_side = str(grok.get("side") or "flat").lower()
+        g_conf = float(grok.get("confidence") or 0.0)
+        g_weight = 0.15 * max(0.0, min(1.0, g_conf))
+        votes.append(
+            {
+                "name": "grok",
+                "side": g_side if g_side in {"buy", "sell"} else "flat",
+                "confidence": g_conf,
+                "weight": g_weight,
+            }
+        )
+        if g_side == "buy":
+            buy_n += g_weight
+        elif g_side == "sell":
+            sell_n += g_weight
+
     preferred = "buy" if buy_n >= sell_n else "sell"
     edge = abs(buy_n - sell_n)
     if edge < 0.05 or max(buy_n, sell_n) < 0.08:
@@ -265,6 +294,16 @@ def fuse_signals(
         and float(holly.get("confidence") or 0) >= 0.35
     ):
         score = min(1.0, score + 0.06 * float(holly.get("confidence") or 0.5))
+    # Grok agree boost — fusion vote only (never sole decider)
+    grok_b = snapshot.get("grok") or {}
+    if (
+        grok_b.get("available")
+        and grok_b.get("vote") is not False
+        and preferred in {"buy", "sell"}
+        and grok_b.get("side") == preferred
+        and float(grok_b.get("confidence") or 0) >= 0.35
+    ):
+        score = min(1.0, score + 0.06 * float(grok_b.get("confidence") or 0.5))
 
     if preferred == "hold":
         state = FusionState.WATCH if max(buy_n, sell_n) > 0.12 else FusionState.NO_TRADE

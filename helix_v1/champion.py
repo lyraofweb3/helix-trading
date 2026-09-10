@@ -228,58 +228,46 @@ def run_champion_cycle(
         }
 
     symbol = str(top["symbol"])
-    # Quant pipeline still runs for fusion/risk/journal context…
-    result = run_helix_cycle(symbol, mode=mode, headlines=headlines, use_llm=True)
-    # …then Grok is the full decision brain (xAI → OpenAI → Anthropic failover).
-    grok_meta: dict[str, Any] = {}
+    from helix.config import llm_brain_enabled
+
+    llm_on = llm_brain_enabled()
+    # Quant is the trading baseline; when llm_on, Grok is a fusion vote inside the pipeline.
+    result = run_helix_cycle(symbol, mode=mode, headlines=headlines, use_llm=llm_on)
+
+    plan = result.get("plan") or {}
+    grok_meta = result.get("grok")
+    # Always try shadow log (fail-soft) with quant plan vs optional Grok from result
     try:
-        from helix.config import llm_brain_enabled
-        from helix.brain import build_market_snapshot, _decide_with_failover
-        from helix.decision import TradeDecision
-        from helix.brain import write_signal
+        from helix_v1.shadow import log_shadow_decision
 
-        if llm_brain_enabled():
-            snap = build_market_snapshot(symbol)
-            if headlines:
-                snap = {**snap, "headlines": headlines}
-            decision, used_client, provider = _decide_with_failover(symbol, snap, headlines or [])
-            # Keep risk veto: if quant risk rejected entries, force hold unless Grok says close
-            risk = ((result.get("plan") or {}).get("meta") or {}).get("risk") or result.get("risk") or {}
-            if isinstance(risk, dict) and risk.get("approved") is False and decision.action in {"buy", "sell"}:
-                decision = TradeDecision(
-                    action="hold",
-                    symbol=decision.symbol,
-                    confidence=decision.confidence,
-                    rationale=f"grok:{decision.action} vetoed by risk ({risk.get('code') or risk.get('reasons')})",
-                    stop_hint=decision.stop_hint,
-                    take_hint=decision.take_hint,
-                )
-            path = write_signal(
-                decision,
-                meta={
-                    "auto_market": True,
-                    "champion": True,
-                    "picked": top,
-                    "provider": provider,
-                    "model": getattr(used_client, "model", None),
-                    "brain": "xai_grok_full",
-                    "quant_plan": result.get("plan"),
-                },
-            )
-            plan = {
-                "action": decision.action,
-                "symbol": decision.symbol,
-                "confidence": decision.confidence,
-                "rationale": decision.rationale,
-                "stop_hint": decision.stop_hint,
-                "take_hint": decision.take_hint,
-            }
-            grok_meta = {"provider": provider, "signal_path": str(path), "plan": plan}
-            result = {**result, "plan": plan, "grok": grok_meta}
+        quant_action = str(plan.get("action") or "hold")
+        quant_conf = plan.get("confidence")
+        if quant_conf is None and isinstance(result.get("fusion"), dict):
+            quant_conf = result["fusion"].get("HELIX_CONFIDENCE_SCORE")
+        quant_state = None
+        if isinstance(result.get("fusion"), dict):
+            quant_state = result["fusion"].get("state")
+        risk = (plan.get("meta") or {}).get("risk") if isinstance(plan.get("meta"), dict) else result.get("risk")
+        risk_veto = None
+        if isinstance(risk, dict) and risk.get("approved") is False:
+            risk_veto = str(risk.get("code") or risk.get("reasons") or "rejected")
+        log_shadow_decision(
+            symbol=symbol,
+            quant_action=quant_action,
+            quant_confidence=float(quant_conf) if quant_conf is not None else None,
+            quant_state=quant_state,
+            grok=grok_meta if isinstance(grok_meta, dict) else None,
+            final_action=quant_action,
+            risk_veto=risk_veto,
+            champion_score=float(top.get("champion_score") or 0),
+            llm_vote=bool(llm_on),
+            shadow_only=(not llm_on),
+            payload={"picked": top, "plan": plan, "grok": grok_meta},
+        )
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Grok full-brain layer failed (%s); keeping quant plan", type(exc).__name__)
-        grok_meta = {"error": type(exc).__name__}
+        logger.warning("champion shadow log skipped: %s", type(exc).__name__)
 
+    brain = "quant+grok_vote" if llm_on else "quant"
     return {
         "ts": datetime.now(timezone.utc).isoformat(),
         "champion": True,
@@ -290,6 +278,6 @@ def run_champion_cycle(
         "news_count": len(headlines),
         "result": result,
         "plan": result.get("plan"),
-        "brain": "xai_grok_full",
+        "brain": brain,
         "grok": grok_meta,
     }

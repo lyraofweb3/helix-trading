@@ -108,6 +108,24 @@ CREATE TABLE IF NOT EXISTS learning_suggestions (
   applied INTEGER DEFAULT 0,
   payload_json TEXT
 );
+CREATE TABLE IF NOT EXISTS shadow_decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  quant_action TEXT,
+  quant_confidence REAL,
+  quant_state TEXT,
+  grok_action TEXT,
+  grok_confidence REAL,
+  grok_provider TEXT,
+  agree INTEGER,
+  final_action TEXT,
+  risk_veto TEXT,
+  champion_score REAL,
+  llm_vote INTEGER,
+  shadow_only INTEGER,
+  payload_json TEXT
+);
 """
 
 
@@ -247,6 +265,52 @@ class HelixDB:
                     metrics.get("expectancy"),
                     metrics.get("max_dd"),
                     json.dumps(metrics),
+                ),
+            )
+            return int(cur.lastrowid)
+
+    def insert_shadow_decision(
+        self,
+        *,
+        symbol: str,
+        quant_action: str | None = None,
+        quant_confidence: float | None = None,
+        quant_state: str | None = None,
+        grok_action: str | None = None,
+        grok_confidence: float | None = None,
+        grok_provider: str | None = None,
+        agree: int | None = None,
+        final_action: str | None = None,
+        risk_veto: str | None = None,
+        champion_score: float | None = None,
+        llm_vote: int | None = None,
+        shadow_only: int | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> int:
+        with self.conn() as c:
+            cur = c.execute(
+                """INSERT INTO shadow_decisions (
+                    ts, symbol, quant_action, quant_confidence, quant_state,
+                    grok_action, grok_confidence, grok_provider, agree,
+                    final_action, risk_veto, champion_score, llm_vote,
+                    shadow_only, payload_json
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    self._now(),
+                    symbol,
+                    quant_action,
+                    quant_confidence,
+                    quant_state,
+                    grok_action,
+                    grok_confidence,
+                    grok_provider,
+                    agree,
+                    final_action,
+                    risk_veto,
+                    champion_score,
+                    llm_vote,
+                    shadow_only,
+                    json.dumps(payload or {}),
                 ),
             )
             return int(cur.lastrowid)

@@ -48,13 +48,18 @@ def run_helix_cycle(
     headlines: list[Any] | None = None,
     open_position: dict[str, Any] | None = None,
     open_positions: list[dict[str, Any]] | None = None,
-    use_llm: bool = True,
+    use_llm: bool | None = None,
     db: HelixDB | None = None,
 ) -> dict[str, Any]:
     """
     Quant-first pipeline.
     LIVE broker submits only when HELIX_MODE=LIVE and risk approves.
+    When use_llm is None, resolves via llm_brain_enabled() (Grok as fusion vote).
     """
+    from helix.config import llm_brain_enabled, grok_shadow_enabled
+
+    if use_llm is None:
+        use_llm = llm_brain_enabled()
     mode_e = mode if isinstance(mode, TradingMode) else (
         TradingMode(str(mode).upper()) if mode else current_mode()
     )
@@ -97,6 +102,32 @@ def run_helix_cycle(
     except Exception as exc:  # noqa: BLE001
         logger.warning("Holly layer skipped: %s", type(exc).__name__)
         snapshot = {**snapshot, "holly": {"available": False, "side": "flat", "confidence": 0.0}}
+
+    # Grok layer: fusion vote when use_llm; shadow-only fetch stays off the fusion snapshot
+    grok_decision: dict | None = None
+    shadow_only = (not use_llm) and grok_shadow_enabled()
+    if use_llm or grok_shadow_enabled():
+        try:
+            from helix_v1.shadow import maybe_fetch_grok_decision
+
+            grok_decision = maybe_fetch_grok_decision(
+                symbol, snapshot, headlines or snapshot.get("headlines")
+            )
+            if grok_decision and use_llm:
+                # Inject into snapshot for fusion vote (never sole decider)
+                snapshot = {
+                    **snapshot,
+                    "grok": {
+                        **grok_decision,
+                        "vote": True,
+                        "shadow_only": False,
+                    },
+                }
+            elif grok_decision and shadow_only:
+                grok_decision = {**grok_decision, "vote": False, "shadow_only": True}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Grok layer skipped: %s", type(exc).__name__)
+            grok_decision = None
 
     signals = run_all(snapshot, structure, regime)
     fusion = fuse_signals(
@@ -225,10 +256,12 @@ def run_helix_cycle(
                 "helix_quant",
                 "mtf",
                 *(["holly_ai"] if (snapshot.get("holly") or {}).get("available") else []),
+                *(["grok_vote"] if use_llm and (snapshot.get("grok") or {}).get("available") else []),
                 "mt5_ea",
             ],
             "holly": snapshot.get("holly"),
-        "idea_engine": snapshot.get("idea_engine"),
+            "grok": snapshot.get("grok") if use_llm else None,
+            "idea_engine": snapshot.get("idea_engine"),
             "execution_path": "HELIX → latest.json → MetaTrader HELIX.mq5 EA",
             "trade_style": current_trade_style().value,
         },
@@ -271,12 +304,40 @@ def run_helix_cycle(
             action,
             fusion.helix_confidence_score,
             plan.rationale,
-            "helix_v1_quant",
+            "helix_v1_quant" + ("+grok_vote" if use_llm else ""),
             {"explanation": explanation, "use_llm": use_llm},
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("persist failed: %s", exc)
 
+    # Shadow log: quant vs optional Grok (table always writable; fetch may be off)
+    try:
+        from helix_v1.shadow import log_shadow_decision
+
+        risk_veto = None
+        if isinstance(verdict.to_dict(), dict) and not verdict.approved:
+            risk_veto = str(verdict.to_dict().get("code") or verdict.to_dict().get("reasons") or "rejected")
+        log_shadow_decision(
+            symbol=symbol,
+            quant_action=action,
+            quant_confidence=fusion.helix_confidence_score,
+            quant_state=fusion.state.value,
+            grok=grok_decision or (snapshot.get("grok") if use_llm else None),
+            final_action=plan.action,
+            risk_veto=risk_veto,
+            llm_vote=bool(use_llm),
+            shadow_only=bool(shadow_only),
+            payload={
+                "fusion": fusion.to_dict(),
+                "plan": plan.to_signal_payload(),
+                "grok": grok_decision,
+            },
+            db=db,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("shadow log skipped: %s", type(exc).__name__)
+
+    brain = "quant+grok_vote" if use_llm else "quant"
     return {
         "ts": datetime.now(timezone.utc).isoformat(),
         "symbol": symbol,
@@ -293,6 +354,12 @@ def run_helix_cycle(
         "strategies": [s.to_dict() for s in signals],
         "mtf": snapshot.get("mtf"),
         "holly": snapshot.get("holly"),
+        "grok": grok_decision or (snapshot.get("grok") if use_llm else None),
         "idea_engine": snapshot.get("idea_engine"),
-        "intelligence": "HELIX full brain: xAI Grok primary + quant fusion/risk",
+        "brain": brain,
+        "intelligence": (
+            "HELIX quant baseline + Grok fusion vote"
+            if use_llm
+            else "HELIX quant baseline (Grok vote off)"
+        ),
     }

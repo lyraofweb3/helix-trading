@@ -148,8 +148,21 @@ AUTO_MARKET = (os.environ.get("HELIX_AUTO_MARKET", "1").strip().lower() not in {
 TRADE_STYLE = (os.environ.get("HELIX_TRADE_STYLE") or "swing").strip().lower()
 
 def llm_brain_enabled() -> bool:
-    """Grok is the full HELIX brain (default ON). Set HELIX_V1_LLM=0 only to force quant-only."""
-    raw = os.environ.get("HELIX_V1_LLM", "1").strip().lower()
+    """Quant is the trading baseline (default OFF for LLM).
+
+    Set HELIX_V1_LLM=1 to enable Grok as a fusion vote (not sole decider).
+    """
+    raw = os.environ.get("HELIX_V1_LLM", "0").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def grok_shadow_enabled() -> bool:
+    """When ON, fetch Grok for shadow_decisions logging without fusion vote.
+
+    Default OFF (credit-safe baseline). Table remains always writable.
+    Env: HELIX_GROK_SHADOW (default "0").
+    """
+    raw = os.environ.get("HELIX_GROK_SHADOW", "0").strip().lower()
     return raw not in {"0", "false", "no", "off"}
 
 # --- risk (mirrors HELIX.mq5) ---

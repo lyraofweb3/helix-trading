@@ -136,6 +136,7 @@ SYMBOLS = [
     "USDCHF",
     "NZDUSD",
     "XAUUSD",  # gold (Exness: XAUUSDm)
+    "XAGUSD",  # silver (Exness: XAGUSDm)
     "USOIL",   # WTI (Exness: often USOILm)
     "UKOIL",   # Brent (Exness: often UKOILm)
 ]
@@ -154,6 +155,8 @@ MAX_TRADES_PER_DAY = int(os.environ.get("HELIX_MAX_TRADES_PER_DAY", "3") or "3")
 MIN_RR = 1.5                # InpMinRR
 SL_ATR_MULT = 1.5           # InpSL_ATR_Mult
 FX_MAX_SPREAD_POINTS = 25   # InpFxMaxSpreadPoints
+METALS_MAX_SPREAD_POINTS = float(os.environ.get("HELIX_METALS_MAX_SPREAD", "120") or 120)
+OIL_MAX_SPREAD_POINTS = float(os.environ.get("HELIX_OIL_MAX_SPREAD", "80") or 80)
 
 # --- knowledge pack ---
 KNOWLEDGE_VERSION = "2026-09-09-v4-npfx-scalp"

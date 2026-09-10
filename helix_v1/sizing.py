@@ -34,7 +34,7 @@ class SizeResult:
 
 def _lot_step_for(symbol: str) -> float:
     sym = symbol.upper()
-    if sym in {"XAUUSD", "GOLD"}:
+    if sym in {"XAUUSD", "GOLD", "XAGUSD", "SILVER"}:
         return 0.01
     if sym in {"USOIL", "UKOIL", "WTI"}:
         return 0.01
@@ -51,6 +51,8 @@ def _pip_value_per_lot(symbol: str, equity_ccy: str = "USD") -> float:
     if sym in {"XAUUSD", "GOLD"}:
         # 1 lot ≈ 100 oz; $0.001 move ≈ $0.10
         return 100.0 * pt / 0.001 * 0.1 if False else 10.0  # ~$1 per 0.1 point? use 1.0$/0.01
+    if sym in {"XAGUSD", "SILVER"}:
+        return 5.0  # rough $ per point per lot for silver CFDs
     # Standard: value per point ≈ contract * point
     # For EURUSD 1.0 lot, 0.00001 move ≈ $1
     if "JPY" in sym:

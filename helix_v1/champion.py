@@ -28,6 +28,7 @@ _NEWS_KEYWORDS: dict[str, tuple[str, ...]] = {
     "USDCAD": ("loonie", "canada", "boc", "oil", "cad"),
     "USDCHF": ("swiss", "snb", "franc", "chf"),
     "XAUUSD": ("gold", "xau", "bullion", "safe haven", "yield"),
+    "XAGUSD": ("silver", "xag", "bullion", "industrial metal", "safe haven"),
     "USOIL": ("oil", "wti", "crude", "opec", "petroleum", "inventory"),
     "UKOIL": ("brent", "oil", "opec", "crude", "north sea"),
 }
@@ -42,7 +43,7 @@ def news_bias_for_symbol(symbol: str, headlines: list[dict[str, Any]] | None) ->
     bull = ("rally", "surge", "gain", "hawkish", "beat", "growth", "demand", "risk-on", "strong", "climb", "jump")
     bear = ("fall", "drop", "slide", "dovish", "miss", "recession", "risk-off", "weak", "slash", "plunge", "tumble")
     # Gold/oil often *rise* on geopolitical stress — do not treat "war" as bear for them
-    if symbol.upper() not in {"XAUUSD", "USOIL", "UKOIL"}:
+    if symbol.upper() not in {"XAUUSD", "XAGUSD", "USOIL", "UKOIL"}:
         bear = bear + ("war", "conflict")
     else:
         bull = bull + ("war", "safe haven", "geopolit")

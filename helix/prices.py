@@ -1,4 +1,4 @@
-"""Free live FX + gold/oil OHLC via Yahoo Finance chart API. Fail soft — no paid keys."""
+"""Free live FX + gold/silver/oil OHLC via Yahoo Finance chart API. Fail soft — no paid keys."""
 
 from __future__ import annotations
 
@@ -22,9 +22,11 @@ YAHOO_SYMBOL_MAP: dict[str, str] = {
     "USDCAD": "USDCAD=X",
     "USDCHF": "USDCHF=X",
     "NZDUSD": "NZDUSD=X",
-    # Metals / energy (Yahoo futures; Exness charts often XAUUSDm / USOILm)
+    # Metals / energy (Yahoo futures; Exness charts often XAUUSDm / XAGUSDm / USOILm)
     "XAUUSD": "GC=F",
     "GOLD": "GC=F",
+    "XAGUSD": "SI=F",
+    "SILVER": "SI=F",
     "USOIL": "CL=F",
     "WTI": "CL=F",
     "XTIUSD": "CL=F",
@@ -62,6 +64,7 @@ def normalize_symbol(symbol: str) -> str:
     # aliases
     aliases = {
         "GOLD": "XAUUSD",
+        "SILVER": "XAGUSD",
         "WTI": "USOIL",
         "XTIUSD": "USOIL",
         "BRENT": "UKOIL",
@@ -88,6 +91,8 @@ def point_size(symbol: str) -> float:
         return 0.001
     if sym in {"XAUUSD", "GOLD"}:
         return 0.001  # Exness XAUUSDm often 3 digits
+    if sym in {"XAGUSD", "SILVER"}:
+        return 0.001  # Exness XAGUSDm typically 3 digits
     if sym in {"USOIL", "UKOIL", "WTI", "XTIUSD", "BRENT", "XBRUSD"}:
         return 0.01
     return 0.00001
@@ -99,6 +104,8 @@ def stub_spread_points(symbol: str) -> int:
         return _STUB_SPREAD_POINTS_JPY
     if sym in {"XAUUSD", "GOLD"}:
         return 80  # metals wider
+    if sym in {"XAGUSD", "SILVER"}:
+        return 60  # silver wider than FX
     if sym in {"USOIL", "UKOIL", "WTI", "XTIUSD", "BRENT", "XBRUSD"}:
         return 40
     return _STUB_SPREAD_POINTS_DEFAULT

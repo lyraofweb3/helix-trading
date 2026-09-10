@@ -7,12 +7,31 @@ from typing import Any
 
 from helix.config import (
     FX_MAX_SPREAD_POINTS,
+    METALS_MAX_SPREAD_POINTS,
+    OIL_MAX_SPREAD_POINTS,
     MAX_DAILY_LOSS_PCT,
     MAX_POSITIONS,
     MAX_TRADES_PER_DAY,
     MIN_RR,
     RISK_PERCENT,
 )
+
+_METALS = {"XAUUSD", "GOLD", "XAGUSD", "SILVER"}
+_OIL = {"USOIL", "UKOIL", "WTI", "XTIUSD", "BRENT", "XBRUSD"}
+
+
+def max_spread_for_symbol(symbol: str) -> float:
+    """Per-asset spread cap — FX tight; metals/oil wider so Auto Market can fire."""
+    sym = (symbol or "").upper().replace("/", "")
+    if sym.endswith("M") and len(sym) > 3:
+        stem = sym[:-1]
+        if stem in _METALS or stem in _OIL or len(stem) == 6:
+            sym = stem
+    if sym in _METALS:
+        return float(METALS_MAX_SPREAD_POINTS)
+    if sym in _OIL:
+        return float(OIL_MAX_SPREAD_POINTS)
+    return float(FX_MAX_SPREAD_POINTS)
 
 
 @dataclass
@@ -97,7 +116,7 @@ CORR_GROUPS: dict[str, set[str]] = {
     "usd_short_eu": {"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"},
     "eur_block": {"EURUSD", "EURGBP", "EURJPY"},
     "gbp_block": {"GBPUSD", "EURGBP", "GBPJPY"},
-    "metals": {"XAUUSD", "GOLD"},
+    "metals": {"XAUUSD", "GOLD", "XAGUSD", "SILVER"},
     "oil": {"USOIL", "UKOIL", "WTI"},
 }
 
@@ -195,10 +214,11 @@ class RiskEngine:
             )
             risk_pct = self.limits.risk_percent
 
-        if prop.spread_points is not None and prop.spread_points > self.limits.max_spread_points:
+        max_sp = max_spread_for_symbol(prop.symbol)
+        if prop.spread_points is not None and prop.spread_points > max_sp:
             return RiskVerdict(
                 False,
-                [f"spread {prop.spread_points} > max {self.limits.max_spread_points}"],
+                [f"spread {prop.spread_points} > max {max_sp} ({prop.symbol})"],
                 code="SPREAD",
             )
 

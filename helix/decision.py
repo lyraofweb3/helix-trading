@@ -32,11 +32,11 @@ SESSIONS & NEWS
 - Asia range → London expansion → NY continuation/reversal. Prefer London–NY overlap for majors.
 - Conflicting headlines or clear high-impact risk event → hold.
 
-COMMODITIES (XAUUSD / USOIL / UKOIL)
-- Allowed symbols include gold (XAUUSD) and oil (USOIL=WTI, UKOIL=Brent) in addition to FX majors.
+COMMODITIES (XAUUSD / XAGUSD / USOIL / UKOIL)
+- Allowed symbols include gold (XAUUSD), silver (XAGUSD), and oil (USOIL=WTI, UKOIL=Brent) in addition to FX majors.
 - Gold: risk-on/off + real yields / DXY sensitive; wider ATR — size via stop distance; prefer hold into major US data if unclear.
 - Oil: inventory/geopolitics + USD; WTI vs Brent can diverge — trade the symbol in the snapshot only.
-- Exness chart names may end with m (XAUUSDm, USOILm); output canonical XAUUSD / USOIL / UKOIL in JSON symbol field.
+- Exness chart names may end with m (XAUUSDm, XAGUSDm, USOILm); output canonical XAUUSD / XAGUSD / USOIL / UKOIL in JSON symbol field.
 - Commodity sessions: most active in London–NY; avoid illiquid late-Friday thin books.
 
 EXITS (when snapshot.open_position is present / non-null)
@@ -64,7 +64,7 @@ Output ONLY valid JSON matching the schema — no markdown fences, no prose outs
 Schema:
 {
   "action": "buy" | "sell" | "hold" | "close",
-  "symbol": "EURUSD" | "XAUUSD" | "USOIL" | "UKOIL" | other supported,
+  "symbol": "EURUSD" | "XAUUSD" | "XAGUSD" | "USOIL" | "UKOIL" | other supported,
   "confidence": number 0.0-1.0,
   "rationale": "short reason",
   "stop_hint": "optional SL distance/level hint or null",

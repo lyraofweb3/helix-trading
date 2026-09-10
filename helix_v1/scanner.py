@@ -23,6 +23,7 @@ except Exception:  # noqa: BLE001
         "USDCHF",
         "NZDUSD",
         "XAUUSD",
+        "XAGUSD",
         "USOIL",
         "UKOIL",
     ]

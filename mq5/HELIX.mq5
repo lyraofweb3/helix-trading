@@ -48,7 +48,7 @@
 //| GMT+2/3). Defaults for stocks approximate US RTH on GMT+2.       |
 //+------------------------------------------------------------------+
 #property copyright "Personal use"
-#property version   "1.33"
+#property version   "1.34"
 #property description "HELIX 1.32 — AI mind + idea channels + trail/BE/partial. Hard risk. DEMO FIRST."
 
 #include <Trade/Trade.mqh>
@@ -106,6 +106,7 @@ input double InpPartialPercent     = 50;     // Close this % of volume (1–99)
 //--- forex filters (used when mode = Forex or Auto→forex)
 input group "Forex filters"
 input int    InpFxMaxSpreadPoints  = 25;     // Max spread in points (EURUSD 5-digit: 10-20 typical)
+input int    InpCmdMaxSpreadPoints = 150;    // Max spread for gold/silver/oil (points)
 input bool   InpFxOnlyLiquidHours  = true;   // Trade London + NY only (server time)
 input bool   InpUseSessionFilter  = false;  // false = trade anytime market is ready
 input int    InpFxSessionStartHour = 7;      // used only if InpUseSessionFilter=true
@@ -188,6 +189,19 @@ struct AiSignal
 //+------------------------------------------------------------------+
 //| Detect stock/CFD vs forex from broker symbol metadata            |
 //+------------------------------------------------------------------+
+bool DetectIsCommodity()
+  {
+   string name = _Symbol;
+   StringToUpper(name);
+   if(StringFind(name, "XAU") >= 0 || StringFind(name, "XAG") >= 0 ||
+      StringFind(name, "GOLD") >= 0 || StringFind(name, "SILVER") >= 0 ||
+      StringFind(name, "USOIL") >= 0 || StringFind(name, "UKOIL") >= 0 ||
+      StringFind(name, "WTI") >= 0 || StringFind(name, "BRENT") >= 0 ||
+      StringFind(name, "XTI") >= 0 || StringFind(name, "XBR") >= 0)
+      return true;
+   return false;
+  }
+
 bool DetectIsStock()
   {
    if(InpSymbolMode == SYMBOL_MODE_FOREX) return false;
@@ -1098,7 +1112,11 @@ int CountOurPositions()
 bool SpreadOk()
   {
    long spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
-   int max_sp = g_is_stock ? InpStMaxSpreadPoints : InpFxMaxSpreadPoints;
+   int max_sp = InpFxMaxSpreadPoints;
+   if(DetectIsCommodity())
+      max_sp = InpCmdMaxSpreadPoints;
+   else if(g_is_stock)
+      max_sp = InpStMaxSpreadPoints;
    if(spread > max_sp) return false;
    return true;
   }

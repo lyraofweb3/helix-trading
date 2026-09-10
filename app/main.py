@@ -488,7 +488,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     <section class="card span6" id="sec-market">
       <div class="sec-title"><strong>Market / Scan</strong><span class="pill" id="scan-count">0</span></div>
-      <div id="scan-list" class="meta">HELIX auto-picks the best market (FX / gold / oil) from scan + news. Tap Auto Market or Run once.</div>
+      <div id="scan-list" class="meta">HELIX auto-picks the best market (FX / gold / silver / oil) from scan + news. Tap Auto Market or Run once.</div>
     </section>
 
     <section class="card span6" id="sec-regime">

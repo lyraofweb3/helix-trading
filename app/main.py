@@ -324,6 +324,13 @@ def api_v1_kill_switch(
     return {"ok": True, "kill_switch": is_kill_switch_on(), **result}
 
 
+# Mount full HELIX v1 router (champion/auto/cycle/holly/mtf/…).
+# Routes already defined above on `app` keep precedence; this adds the missing ones.
+from app.v1_api import router as helix_v1_router
+
+app.include_router(helix_v1_router)
+
+
 # ── Dashboard HTML ────────────────────────────────────────────────────
 
 DASHBOARD_HTML = """<!DOCTYPE html>

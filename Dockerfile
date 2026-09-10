@@ -16,6 +16,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY helix ./helix
+COPY helix_v1 ./helix_v1
 COPY app ./app
 COPY cli_main.py ./cli_main.py
 COPY start.py ./start.py
